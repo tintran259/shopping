@@ -2,6 +2,7 @@ import parse, {
   Element,
   type HTMLReactParserOptions,
 } from "html-react-parser";
+import parseStyle from "style-to-object";
 import Image from "next/image";
 import { env } from "@/config/env";
 import { absoluteMediaUrl } from "@/cms/transformers/cms.transformer";
@@ -12,7 +13,6 @@ import { absoluteMediaUrl } from "@/cms/transformers/cms.transformer";
  * URLs that resolve to it) are optimized; images on other hosts are left as
  * plain `<img>` so they don't trip next/image's allowed-hosts check.
  */
-
 const strapiHost = (() => {
   try {
     return new URL(env.strapiUrl).host;
@@ -34,8 +34,17 @@ const options: HTMLReactParserOptions = {
   replace: (node) => {
     if (!(node instanceof Element) || node.name !== "img") return;
 
-    const { src, alt, width, height } = node.attribs;
+    const { src, alt, width, height, style } = node.attribs;
     if (!src) return null;
+
+    const imageStyle: React.CSSProperties = {};
+
+    parseStyle(style ?? "", (name, value) => {
+      if (name !== "width" && name !== "height") {
+        const camelCase = name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        imageStyle[camelCase as keyof React.CSSProperties] = value as any;
+      }
+    });
 
     const url = absoluteMediaUrl(src);
     if (!isOptimizable(url)) return; // keep the original <img>
@@ -52,7 +61,7 @@ const options: HTMLReactParserOptions = {
           alt={alt ?? ""}
           width={w}
           height={h}
-          className="h-auto max-w-full rounded-lg"
+          style={imageStyle}
         />
       );
     }
@@ -65,6 +74,7 @@ const options: HTMLReactParserOptions = {
         height={0}
         sizes="100vw"
         className="h-auto w-full rounded-lg"
+        style={imageStyle}
       />
     );
   },
