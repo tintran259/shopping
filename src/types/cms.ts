@@ -65,7 +65,8 @@ export type StrapiBlock =
   | StrapiImageBlock
   | StrapiRichTextBlock
   | StrapiBannerBlock
-  | StrapiCarouselBlock;
+  | StrapiCarouselBlock
+  | StrapiContentGridBlock;
 
 export interface StrapiImageBlock extends StrapiBase, Scheduled {
   __component: "blocks.image";
@@ -95,11 +96,15 @@ export interface StrapiBannerBlock extends StrapiBase {
   banner: StrapiBanner | null;
 }
 
+export type ObjectFit = "cover" | "contain" | "fill" | "none" | "scale-down";
+
 export interface StrapiCarouselBlock extends StrapiBase, Scheduled {
   __component: "blocks.carousel";
   autoplay: boolean;
   interval: number;
   loop: boolean;
+  width: string | null;
+  height: string | null;
   slides: StrapiSlide[];
 }
 
@@ -108,6 +113,21 @@ export interface StrapiSlide extends StrapiBase, Scheduled {
   caption: string | null;
   url: string | null;
   target: "_blank" | "_self" | "_top" | "_parent" | null;
+  objectFit: ObjectFit | null;
+}
+
+/** A grid card is a publishable entry with its own dynamic zone of blocks. */
+export interface StrapiGridCard extends StrapiEntry, Scheduled {
+  name: string;
+  zone: StrapiBlock[];
+}
+
+export interface StrapiContentGridBlock extends StrapiBase, Scheduled {
+  __component: "blocks.content-grid";
+  desktopColumns: number;
+  tabletColumns: number;
+  mobileColumns: number;
+  items: StrapiGridCard[];
 }
 
 export interface StrapiBanner extends StrapiEntry, Scheduled {
@@ -161,7 +181,8 @@ export type Block =
   | ImageBlockVM
   | RichTextBlockVM
   | BannerBlockVM
-  | CarouselBlockVM;
+  | CarouselBlockVM
+  | ContentGridBlockVM;
 
 /**
  * Scheduling window forwarded to the client so blocks can appear/disappear live
@@ -200,6 +221,9 @@ export interface CarouselBlockVM extends ScheduledVM {
   autoplay: boolean;
   interval: number;
   loop: boolean;
+  /** CSS width/height for the carousel box (e.g. "100%", "auto", "400px"). */
+  width: string | null;
+  height: string | null;
   slides: SlideVM[];
 }
 
@@ -209,6 +233,8 @@ export interface SlideVM {
   caption: string | null;
   href: string | null;
   target: string | null;
+  /** How this slide's image fills its box. */
+  objectFit: ObjectFit;
 }
 
 export interface BannerVM {
@@ -217,4 +243,20 @@ export interface BannerVM {
   description: string | null;
   image: MediaImage | null;
   blocks: Block[];
+}
+
+/** One cell of a content grid — renders its own list of blocks. */
+export interface GridCardVM extends ScheduledVM {
+  id: number;
+  name: string;
+  blocks: Block[];
+}
+
+export interface ContentGridBlockVM extends ScheduledVM {
+  __component: "blocks.content-grid";
+  id: number;
+  desktopColumns: number;
+  tabletColumns: number;
+  mobileColumns: number;
+  items: GridCardVM[];
 }

@@ -2,6 +2,7 @@ import { ImageBlock } from "@/cms/blocks/image-block";
 import { RichTextBlock } from "@/cms/blocks/rich-text-block";
 import { CarouselBlock } from "@/cms/blocks/carousel-block";
 import { BannerBlock } from "@/cms/blocks/banner-block";
+import { ContentGridBlock } from "@/cms/blocks/content-grid-block";
 import { ScheduledBlock } from "./scheduled-block";
 import type { Block } from "@/types/cms";
 
@@ -23,6 +24,8 @@ function renderBlock(block: Block) {
       return <CarouselBlock block={block} />;
     case "blocks.banner":
       return <BannerBlock block={block} />;
+    case "blocks.content-grid":
+      return <ContentGridBlock block={block} />;
     default: {
       // Exhaustiveness guard — a new block type must be handled above.
       const _never: never = block;

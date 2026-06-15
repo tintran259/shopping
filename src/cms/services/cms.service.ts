@@ -22,25 +22,39 @@ const carouselPopulate = {
   populate: { slides: { populate: { image: true } } },
 };
 
-const zoneOn = {
-  "blocks.image": { populate: { image: true } },
-  "blocks.rich-text": true,
-  "blocks.carousel": carouselPopulate,
-  "blocks.banner": {
-    populate: {
-      banner: {
-        populate: {
-          image: { populate: { image: true } },
-          zone: {
-            on: {
-              "blocks.rich-text": true,
-              "blocks.carousel": carouselPopulate,
-            },
+const bannerBlockPopulate = {
+  populate: {
+    banner: {
+      populate: {
+        image: { populate: { image: true } },
+        zone: {
+          on: {
+            "blocks.rich-text": true,
+            "blocks.carousel": carouselPopulate,
           },
         },
       },
     },
   },
+};
+
+// The leaf blocks that can appear in any dynamic zone (also reused for the zone
+// inside each grid-card). content-grid is NOT here — grid-cards can't nest grids.
+const baseBlockOn = {
+  "blocks.image": { populate: { image: true } },
+  "blocks.rich-text": true,
+  "blocks.carousel": carouselPopulate,
+  "blocks.banner": bannerBlockPopulate,
+};
+
+// content-grid → items (grid-cards) → each card's zone of leaf blocks.
+const contentGridPopulate = {
+  populate: { items: { populate: { zone: { on: baseBlockOn } } } },
+};
+
+const zoneOn = {
+  ...baseBlockOn,
+  "blocks.content-grid": contentGridPopulate,
 };
 
 const zonePopulate = { zone: { on: zoneOn } };

@@ -12,4 +12,5 @@ export const ALLOWED_BLOCKS = [
   "blocks.rich-text",
   "blocks.carousel",
   "blocks.banner",
+  "blocks.content-grid",
 ] as const satisfies readonly Block["__component"][];

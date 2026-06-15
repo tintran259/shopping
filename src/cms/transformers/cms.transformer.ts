@@ -59,6 +59,7 @@ function toSlide(slide: StrapiSlide): SlideVM {
     caption: slide.caption,
     href: slide.url,
     target: slide.target,
+    objectFit: slide.objectFit ?? "cover",
   };
 }
 
@@ -106,7 +107,26 @@ function transformBlock(block: StrapiBlock): Block | null {
         autoplay: block.autoplay,
         interval: block.interval,
         loop: block.loop,
+        width: block.width || null,
+        height: block.height || null,
         slides: (block.slides ?? []).map(toSlide),
+        startAt: block.startAt,
+        endAt: block.endAt,
+      };
+    case "blocks.content-grid":
+      return {
+        __component: "blocks.content-grid",
+        id: block.id,
+        desktopColumns: block.desktopColumns ?? 3,
+        tabletColumns: block.tabletColumns ?? 2,
+        mobileColumns: block.mobileColumns ?? 1,
+        items: (block.items ?? []).map((card) => ({
+          id: card.id,
+          name: card.name,
+          blocks: transformBlocks(card.zone),
+          startAt: card.startAt,
+          endAt: card.endAt,
+        })),
         startAt: block.startAt,
         endAt: block.endAt,
       };
