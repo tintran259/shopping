@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Inter, Montserrat, Geist_Mono } from "next/font/google";
 import { AppProviders } from "@/providers";
+import { Header } from "@/components/layout/header/header";
+import { Footer } from "@/components/layout/footer/footer";
+import { getGlobalSeo, getActiveTheme } from "@/cms/services/cms.service";
+import { themeToCssVars } from "@/cms/theme";
 import "./globals.css";
 
 // Body / UI font — Inter is the most widely used e-commerce UI font; great at
@@ -25,27 +29,41 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "Shopping — Headless Storefront",
-    template: "%s · Shopping",
-  },
-  description: "Headless ecommerce storefront built with Next.js and Strapi.",
-};
+const SITE_NAME = "Shopping";
 
-export default function RootLayout({
+export async function generateMetadata(): Promise<Metadata> {
+  const seo = await getGlobalSeo();
+  const title = seo?.title || `${SITE_NAME} — Headless Storefront`;
+  return {
+    title: { default: title, template: `%s · ${seo?.title || SITE_NAME}` },
+    description:
+      seo?.description ||
+      "Headless ecommerce storefront built with Next.js and Strapi.",
+    icons: seo?.favicon?.src ? { icon: seo.favicon.src } : undefined,
+  };
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [seo, theme] = await Promise.all([getGlobalSeo(), getActiveTheme()]);
+  const themeVars = theme ? themeToCssVars(theme) : undefined;
+
   return (
     <html
       lang="en"
       suppressHydrationWarning
+      style={themeVars}
       className={`${inter.variable} ${montserrat.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AppProviders>{children}</AppProviders>
+        <AppProviders>
+          <Header />
+          <div className="flex-1">{children}</div>
+          <Footer />
+        </AppProviders>
       </body>
     </html>
   );

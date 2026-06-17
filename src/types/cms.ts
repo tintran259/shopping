@@ -159,11 +159,149 @@ export interface StrapiGlobalSeo extends StrapiEntry {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Menu (nav.* components)                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** A page relation populated with just its slug. */
+type StrapiPageRef = { slug: string } | null;
+
+/** L3 — `nav.link`. */
+export interface StrapiNavLink extends StrapiBase, Scheduled {
+  label: string;
+  url: string | null;
+  openInNewTab: boolean;
+  highlight: boolean;
+  image: StrapiMedia | null;
+  page: StrapiPageRef;
+}
+
+/** L2 — `nav.submenu-item`. */
+export interface StrapiSubmenuItem extends StrapiBase, Scheduled {
+  label: string;
+  url: string | null;
+  openInNewTab: boolean;
+  highlight: boolean;
+  image: StrapiMedia | null;
+  page: StrapiPageRef;
+  children: StrapiNavLink[];
+}
+
+/** L1 — `nav.menu-item`. */
+export interface StrapiMenuItem extends StrapiBase, Scheduled {
+  label: string;
+  url: string | null;
+  openInNewTab: boolean;
+  icon: string | null;
+  highlight: boolean;
+  page: StrapiPageRef;
+  featuredBanner: { image: StrapiImageBlock | null } | null;
+  children: StrapiSubmenuItem[];
+}
+
+export interface StrapiMenu extends StrapiEntry {
+  name: string;
+  handle: string;
+  position: "start" | "end";
+  items: StrapiMenuItem[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Footer (single type)                                                       */
+/* -------------------------------------------------------------------------- */
+
+export interface StrapiFooterColumn extends StrapiBase {
+  title: string;
+  links: StrapiNavLink[];
+}
+
+export interface StrapiSocialLink extends StrapiBase {
+  platform: string;
+  url: string;
+}
+
+export interface StrapiFooter extends StrapiEntry {
+  tagline: string | null;
+  columns: StrapiFooterColumn[];
+  socials: StrapiSocialLink[];
+  copyright: string | null;
+  bottomLinks: StrapiNavLink[];
+}
+
+/** A simple resolved link (url from `url` or the page relation). */
+export interface NavLinkItem {
+  label: string;
+  url: string | null;
+  openInNewTab: boolean;
+}
+
+export interface FooterColumnVM {
+  title: string;
+  links: NavLinkItem[];
+}
+
+export interface FooterSocialVM {
+  platform: string;
+  url: string;
+}
+
+export interface FooterVM {
+  tagline: string | null;
+  columns: FooterColumnVM[];
+  socials: FooterSocialVM[];
+  /** May contain a `{year}` token the storefront replaces at render. */
+  copyright: string | null;
+  bottomLinks: NavLinkItem[];
+}
+
+/** Normalized site settings (SEO) the storefront applies globally. */
+export interface GlobalSeoVM {
+  title: string | null;
+  description: string | null;
+  logo: MediaImage | null;
+  favicon: MediaImage | null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Theme (collectionType `theme`, one active row)                             */
+/* -------------------------------------------------------------------------- */
+
+/** Every `global::color` field on the CMS Theme — drives the storefront palette. */
+export const THEME_COLOR_KEYS = [
+  "primary", "primaryHover", "secondary", "secondaryHover", "accent",
+  "pageBackground", "headerBackground", "footerBackground", "sidebarBackground",
+  "cardBackground", "overlayBackground",
+  "textPrimary", "textSecondary", "textMuted", "headingColor",
+  "linkColor", "linkHover", "textOnPrimary",
+  "headerText", "navLink", "navLinkHover",
+  "announcementBarBackground", "announcementBarText",
+  "cartBadgeBackground", "cartBadgeText", "searchBarBackground",
+  "footerText", "footerLink", "footerLinkHover", "footerBorder",
+  "btnPrimaryBg", "btnPrimaryText", "btnPrimaryHover",
+  "btnSecondaryBg", "btnSecondaryText", "btnSecondaryHover", "btnDisabledBg",
+  "price", "salePrice", "discountBadgeBg", "discountBadgeText", "rating",
+  "inStock", "outOfStock", "wishlistColor", "freeShipBadge",
+  "success", "warning", "error", "info",
+  "borderColor", "divider",
+  "inputBackground", "inputBorder", "inputFocusBorder", "inputText", "inputPlaceholder",
+] as const;
+
+export type ThemeColorKey = (typeof THEME_COLOR_KEYS)[number];
+
+/** Raw Strapi Theme row — color custom fields are flattened scalar strings. */
+export type StrapiTheme = StrapiEntry & {
+  name: string;
+  isActive: boolean;
+} & Partial<Record<ThemeColorKey, string | null>>;
+
+/** Normalized theme palette — only the colors that are actually set. */
+export type ThemeVM = Partial<Record<ThemeColorKey, string>>;
+
+/* -------------------------------------------------------------------------- */
 /* Slots                                                                      */
 /* -------------------------------------------------------------------------- */
 
 /** Positions the CMS `content-slot.position` enum actually supports. */
-export type SlotPosition = "home-top" | "home-bottom";
+export type SlotPosition = "home-top" | "home-bottom" | "announcement-bar";
 
 /* -------------------------------------------------------------------------- */
 /* Normalized view models (what the UI renders)                               */

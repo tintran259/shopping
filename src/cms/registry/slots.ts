@@ -7,6 +7,10 @@ import type { SlotPosition } from "@/types/cms";
  * The CMS currently only exposes home slots; add positions here only after
  * they are added to the CMS enum, otherwise the filter will never match.
  */
-export const SLOTS = ["home-top", "home-bottom"] as const satisfies readonly SlotPosition[];
+export const SLOTS = [
+  "home-top",
+  "home-bottom",
+  "announcement-bar",
+] as const satisfies readonly SlotPosition[];
 
 export type SlotName = (typeof SLOTS)[number];
