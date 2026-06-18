@@ -283,6 +283,7 @@ export const THEME_COLOR_KEYS = [
   "success", "warning", "error", "info",
   "borderColor", "divider",
   "inputBackground", "inputBorder", "inputFocusBorder", "inputText", "inputPlaceholder",
+  "checkboxBackground", "checkboxBorder", "checkboxIcon", "checkboxDisabled",
 ] as const;
 
 export type ThemeColorKey = (typeof THEME_COLOR_KEYS)[number];
@@ -301,7 +302,12 @@ export type ThemeVM = Partial<Record<ThemeColorKey, string>>;
 /* -------------------------------------------------------------------------- */
 
 /** Positions the CMS `content-slot.position` enum actually supports. */
-export type SlotPosition = "home-top" | "home-bottom" | "announcement-bar";
+export type SlotPosition =
+  | "home-top"
+  | "home-bottom"
+  | "announcement-bar"
+  | "plp-top"
+  | "plp-bottom";
 
 /* -------------------------------------------------------------------------- */
 /* Normalized view models (what the UI renders)                               */

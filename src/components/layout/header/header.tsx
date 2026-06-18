@@ -5,8 +5,9 @@ import { DesktopNav } from "./desktop-nav";
 import { MobileNav } from "./mobile-nav";
 import { SearchBar } from "./search-bar";
 import { CartButton } from "./cart-button";
+import { WishlistButton } from "./wishlist-button";
 import { BranchSelector } from "./branch-selector";
-import { UserIcon, HeartIcon } from "./icons";
+import { UserIcon } from "./icons";
 import { getGlobalSeo } from "@/cms/services/cms.service";
 import { getNavigation } from "@/services/navigation";
 import { getBranches } from "@/services/branch.service";
@@ -64,13 +65,7 @@ export async function Header() {
             >
               <UserIcon />
             </Link>
-            <Link
-              href="/wishlist"
-              aria-label="Wishlist"
-              className="hidden size-9 items-center justify-center rounded-md hover:bg-muted sm:inline-flex"
-            >
-              <HeartIcon />
-            </Link>
+            <WishlistButton />
             <CartButton />
           </div>
         </div>

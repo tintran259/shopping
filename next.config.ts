@@ -25,6 +25,12 @@ const nextConfig: NextConfig = {
         port: strapiUrl.port || undefined,
         pathname: "/uploads/**",
       },
+      // Placeholder product imagery (mock catalog). Remove once the BE serves
+      // real product media through its own host.
+      { protocol: "https", hostname: "picsum.photos" },
+      { protocol: "https", hostname: "fastly.picsum.photos" },
+      // Real đặc sản photos (Shopee image CDN) used by the specialty seed.
+      { protocol: "https", hostname: "down-vn.img.susercontent.com" },
     ],
   },
 };

@@ -3,6 +3,7 @@ import { Inter, Montserrat, Geist_Mono } from "next/font/google";
 import { AppProviders } from "@/providers";
 import { Header } from "@/components/layout/header/header";
 import { Footer } from "@/components/layout/footer/footer";
+import { BackToTop } from "@/components/shared/back-to-top";
 import { getGlobalSeo, getActiveTheme } from "@/cms/services/cms.service";
 import { themeToCssVars } from "@/cms/theme";
 import "./globals.css";
@@ -48,7 +49,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [seo, theme] = await Promise.all([getGlobalSeo(), getActiveTheme()]);
+  const theme = await getActiveTheme();
   const themeVars = theme ? themeToCssVars(theme) : undefined;
 
   return (
@@ -63,6 +64,7 @@ export default async function RootLayout({
           <Header />
           <div className="flex-1">{children}</div>
           <Footer />
+          <BackToTop />
         </AppProviders>
       </body>
     </html>

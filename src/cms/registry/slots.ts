@@ -11,6 +11,8 @@ export const SLOTS = [
   "home-top",
   "home-bottom",
   "announcement-bar",
+  "plp-top",
+  "plp-bottom",
 ] as const satisfies readonly SlotPosition[];
 
 export type SlotName = (typeof SLOTS)[number];
