@@ -18,6 +18,9 @@ export function resolveDefaultBranch(branches: Branch[]): Branch | null {
   return branches.find((b) => b.isDefault) ?? branches[0] ?? null;
 }
 
+/** Branch ids — used to seed per-branch product stock. */
+export const BRANCH_IDS = ["hcm-q1", "hcm-q7", "hn-hk", "dn-hc"] as const;
+
 const MOCK_BRANCHES: Branch[] = [
   {
     id: "hcm-q1",

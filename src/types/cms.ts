@@ -307,7 +307,10 @@ export type SlotPosition =
   | "home-bottom"
   | "announcement-bar"
   | "plp-top"
-  | "plp-bottom";
+  | "plp-bottom"
+  | "pdp-top"
+  | "pdp-content"
+  | "pdp-bottom";
 
 /* -------------------------------------------------------------------------- */
 /* Normalized view models (what the UI renders)                               */

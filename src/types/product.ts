@@ -124,6 +124,8 @@ export interface ProductSummary {
   rating?: ProductRating;
   flags: ProductFlags;
   inStock: boolean;
+  /** Per-branch availability — lets the PLP quick-add respect the selected branch. */
+  branchStock?: BranchStock[];
   /** Availability state — drives the "Hết hàng" / "Đặt trước" badges. */
   status?: ProductStatus;
   /** Primary option preview (e.g. color swatches, or "3 quy cách"). */

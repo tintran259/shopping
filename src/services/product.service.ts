@@ -1,5 +1,8 @@
+import { BRANCH_IDS } from "@/services/branch.service";
 import type {
+  BranchStock,
   BrandRef,
+  CategoryRef,
   Facet,
   FacetType,
   Product,
@@ -10,6 +13,17 @@ import type {
   ProductSummary,
   ProductVariant,
 } from "@/types/product";
+
+/** Accent/diacritic-insensitive normalizer for Vietnamese search. */
+function normalize(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+}
 
 /**
  * BE catalog adapter. The backend will expose `GET /products` (list, with
@@ -106,6 +120,7 @@ const IMG = {
   macca: SU + "vn-11134207-81ztc-mn6of31w7hfo84",
   caphe: SU + "vn-11134207-81ztc-mn2p5ygzvev4d7",
 };
+const IMG_POOL = [IMG.khoai, IMG.mutDau, IMG.hong, IMG.dauTay, IMG.macca, IMG.caphe];
 
 interface DalatPreset {
   slug: string;
@@ -170,14 +185,12 @@ function buildProduct(cat: CategoryDef, i: number, preset?: DalatPreset): Produc
   let optionPreviewKey = "";
   let name: string;
   let slug: string;
-  let image: string;
   let basePrice: number;
 
   if (cat.vertical === "specialty" && preset) {
     const cycle = Math.floor(i / DALAT_SPECIALTIES.length);
     slug = cycle === 0 ? preset.slug : `${preset.slug}-${cycle + 1}`;
     name = cycle === 0 ? preset.name : `${preset.name} #${cycle + 1}`;
-    image = preset.img;
     basePrice = preset.base;
     attributes.push({ key: "region", label: "Vùng miền", value: preset.region });
     if (preset.cert) attributes.push({ key: "cert", label: "Chứng nhận", value: preset.cert });
@@ -194,7 +207,8 @@ function buildProduct(cat: CategoryDef, i: number, preset?: DalatPreset): Produc
           sku: `${slug}-${w}`,
           options: { "Quy cách": w },
           price: { amount: vPrice, compareAt: onSale ? round1k(vPrice * 1.25) : null, currency: CURRENCY },
-          stock: Math.ceil(r() * 30),
+          // Some quy cách run out of stock so the PDP can exercise per-variant OOS.
+          stock: r() < 0.18 ? 0 : Math.ceil(r() * 30),
         });
       });
     } else {
@@ -206,7 +220,6 @@ function buildProduct(cat: CategoryDef, i: number, preset?: DalatPreset): Produc
     basePrice = 80_000 + Math.round(r() * 40) * 15_000; // 80k–680k
     slug = `${cat.slug}-${brand.slug}-${i + 1}`;
     name = `${cat.name} ${brand.name} ${idx}`;
-    image = `https://picsum.photos/seed/${slug}/600/750`;
     if (cat.vertical === "fashion") {
       attributes.push({ key: "color", label: "Màu sắc", value: FASHION.colors });
       attributes.push({ key: "material", label: "Chất liệu", value: pick(FASHION.materials, r) });
@@ -220,12 +233,38 @@ function buildProduct(cat: CategoryDef, i: number, preset?: DalatPreset): Produc
   }
 
   if (longName) name = `${name} — phiên bản giới hạn đặc biệt, mẫu mới ${idx}`;
-  if (noImage) image = "";
+
+  // Multiple images so the PDP gallery has thumbnails. noImage → empty (placeholder);
+  // specialty → real Shopee photos (preset first); generic → several picsum seeds.
+  const urls = noImage
+    ? [""]
+    : preset
+      ? [preset.img, ...IMG_POOL.filter((u) => u !== preset.img)].slice(0, 4)
+      : // first item of each generic category gets 24 images to exercise the gallery
+        Array.from({ length: i === 0 ? 24 : 4 }, (_, n) => `https://picsum.photos/seed/${slug}-${n + 1}/600/750`);
+  const images = urls.map((url, n) => ({
+    url,
+    alt: `${name} - ảnh ${n + 1}`,
+    width: 600,
+    height: 750,
+  }));
 
   // Card price = lowest variant price (or the simple base price).
   const priceAmount = variants.length ? Math.min(...variants.map((v) => v.price.amount)) : basePrice;
   const compareAt = onSale ? round1k(priceAmount * 1.25) : null;
   const priceVaries = variants.length > 0 && new Set(variants.map((v) => v.price.amount)).size > 1;
+  // Variant products are in stock if ANY variant has stock; else use the simple flag.
+  const variantInStock = variants.length ? variants.some((v) => v.stock > 0) : stock > 0;
+
+  // Per-branch availability. If the product is out of stock overall, every branch
+  // is out; otherwise each branch is randomly stocked but at least one carries it.
+  const branchStock: BranchStock[] = BRANCH_IDS.map((branchId) => {
+    const ok = variantInStock && r() > 0.4;
+    return { branchId, inStock: ok, quantity: ok ? Math.ceil(r() * 20) : 0 };
+  });
+  if (variantInStock && !branchStock.some((b) => b.inStock)) {
+    branchStock[0] = { branchId: BRANCH_IDS[0], inStock: true, quantity: Math.ceil(r() * 20) + 1 };
+  }
 
   return {
     id: slug,
@@ -235,7 +274,7 @@ function buildProduct(cat: CategoryDef, i: number, preset?: DalatPreset): Produc
     brand: noBrand ? null : brand,
     price: { amount: priceAmount, compareAt, currency: CURRENCY },
     priceVaries,
-    images: [{ url: image, alt: name, width: 600, height: 750 }],
+    images,
     shortDescription:
       cat.vertical === "specialty"
         ? `${name} — đặc sản Đà Lạt, tự nhiên từ đất, ngọt lành từ tâm.`
@@ -244,11 +283,12 @@ function buildProduct(cat: CategoryDef, i: number, preset?: DalatPreset): Produc
       ? undefined
       : { average: Math.round((3.5 + r() * 1.5) * 10) / 10, count: Math.ceil(r() * 200) },
     flags: { isNew: i % 7 === 0, isBestSeller: i % 4 === 0, isFeatured: i % 11 === 0, isOnSale: onSale },
-    inStock: isPreorder ? true : stock > 0,
-    status: isPreorder ? "preorder" : stock > 0 ? "active" : "out_of_stock",
+    inStock: isPreorder ? true : variantInStock,
+    status: isPreorder ? "preorder" : variantInStock ? "active" : "out_of_stock",
     attributes,
     options,
     variants,
+    branchStock,
     categories: [{ id: cat.id, slug: cat.slug, name: cat.name }],
     optionPreview: optionPreviewKey
       ? {
@@ -346,6 +386,7 @@ function toSummary(p: Product): ProductSummary {
     rating: p.rating,
     flags: p.flags,
     inStock: p.inStock,
+    branchStock: p.branchStock,
     status: p.status,
     optionPreview: p.optionPreview,
     highlight: p.highlight,
@@ -366,8 +407,8 @@ export async function getProducts(params: ProductListParams = {}): Promise<Produ
 
   let filtered = scoped;
   if (params.search) {
-    const q = params.search.toLowerCase();
-    filtered = filtered.filter((p) => p.name.toLowerCase().includes(q));
+    const q = normalize(params.search);
+    filtered = filtered.filter((p) => normalize(p.name).includes(q));
   }
   // Generic facet filters: every selected value must match (AND across facets).
   for (const [key, selected] of Object.entries(params.filters ?? {})) {
@@ -397,4 +438,30 @@ export async function getProducts(params: ProductListParams = {}): Promise<Produ
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   return CATALOG.find((p) => p.slug === slug) ?? null;
+}
+
+export interface SearchSuggestions {
+  products: ProductSummary[];
+  categories: CategoryRef[];
+  total: number;
+}
+
+/** Typeahead suggestions: top matching products + matching categories. */
+export async function searchSuggestions(
+  query: string,
+  limit = 6,
+): Promise<SearchSuggestions> {
+  const q = normalize(query);
+  if (q.length < 2) return { products: [], categories: [], total: 0 };
+
+  const matched = CATALOG.filter((p) => normalize(p.name).includes(q));
+  const categories: CategoryRef[] = CATEGORIES.filter((c) => normalize(c.name).includes(q)).map(
+    (c) => ({ id: c.id, slug: c.slug, name: c.name }),
+  );
+
+  return {
+    products: matched.slice(0, limit).map(toSummary),
+    categories,
+    total: matched.length,
+  };
 }

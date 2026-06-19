@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { useWishlistStore } from "@/store/wishlist.store";
 import type { WishlistList } from "@/store/wishlist.store";
 
@@ -36,6 +37,7 @@ export function WishlistPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client mount gate
   useEffect(() => setMounted(true), []);
   const [name, setName] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<WishlistList | null>(null);
 
   const onCreate = () => {
     const n = name.trim();
@@ -98,7 +100,7 @@ export function WishlistPage() {
               </Link>
               <button
                 type="button"
-                onClick={() => removeList(l.id)}
+                onClick={() => setPendingDelete(l)}
                 aria-label={`Xóa danh sách ${l.name}`}
                 className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-full bg-background/85 text-muted-foreground opacity-0 shadow-sm backdrop-blur transition hover:text-destructive group-hover:opacity-100"
               >
@@ -110,6 +112,23 @@ export function WishlistPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Xóa danh sách"
+        description={
+          pendingDelete
+            ? `Bạn có thật sự muốn xóa danh sách "${pendingDelete.name}" không?`
+            : undefined
+        }
+        confirmLabel="Xóa"
+        danger
+        onConfirm={() => {
+          if (pendingDelete) removeList(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </main>
   );
 }

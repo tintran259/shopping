@@ -41,7 +41,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
     <div className="group flex flex-col rounded-2xl bg-(--theme-card-background,transparent) p-2 transition hover:shadow-sm">
       {/* Media */}
       <div className="relative aspect-4/5 overflow-hidden rounded-xl bg-muted/60 ring-1 ring-border/50 transition group-hover:ring-border">
-        <Link href={`/p/${product.slug}`} className="absolute inset-0">
+        <Link href={`/product/${product.slug}`} className="absolute inset-0">
           {product.thumbnail?.url ? (
             <Image
               src={product.thumbnail.url}
@@ -119,7 +119,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           </span>
         )}
         <Link
-          href={`/p/${product.slug}`}
+          href={`/product/${product.slug}`}
           className="mt-0.5 line-clamp-2 text-sm font-medium leading-snug hover:text-primary"
         >
           {product.name}

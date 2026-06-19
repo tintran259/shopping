@@ -6,6 +6,7 @@ import { Footer } from "@/components/layout/footer/footer";
 import { BackToTop } from "@/components/shared/back-to-top";
 import { getGlobalSeo, getActiveTheme } from "@/cms/services/cms.service";
 import { themeToCssVars } from "@/cms/theme";
+import { env } from "@/config/env";
 import "./globals.css";
 
 // Body / UI font — Inter is the most widely used e-commerce UI font; great at
@@ -36,6 +37,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const seo = await getGlobalSeo();
   const title = seo?.title || `${SITE_NAME} — Headless Storefront`;
   return {
+    metadataBase: new URL(env.siteUrl),
     title: { default: title, template: `%s · ${seo?.title || SITE_NAME}` },
     description:
       seo?.description ||

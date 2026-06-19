@@ -16,6 +16,8 @@ export const env = {
   strapiToken: process.env.STRAPI_API_TOKEN,
   /** Base URL of the commerce/storefront API. */
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api",
+  /** Public origin of the storefront — for canonical URLs, OG tags, JSON-LD. */
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
 } as const;
 
 export { required };
