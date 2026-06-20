@@ -17,6 +17,7 @@ export interface OrderRecord {
   phone: string;
   email?: string;
   fulfillment: "delivery" | "pickup";
+  paymentMethodId: string;
   paymentLabel: string;
   branchName?: string;
   address?: string;

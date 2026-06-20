@@ -14,7 +14,7 @@ import { useOrderStore } from "@/store/order.store";
 import { BRANCH_IDS, resolveDefaultBranch } from "@/services/branch.service";
 import { getDeliveryMethods, PICKUP_METHOD } from "@/services/shipping.service";
 import { discountFor, findVoucher, shippingDiscountFor } from "@/services/voucher.service";
-import { placeOrder } from "@/services/order.service";
+import { newOrderId, placeOrder } from "@/services/order.service";
 import type { Branch } from "@/types/branch";
 import type { CartLine } from "@/store/cart.store";
 import { ContactAddress } from "./components/contact-address";
@@ -22,6 +22,7 @@ import { DeliveryOptions } from "./components/delivery-options";
 import { PaymentOptions } from "./components/payment-options";
 import { OrderSummary } from "./components/order-summary";
 import { VatInvoice } from "./components/vat-invoice";
+import { BankTransferModal } from "./components/bank-transfer-modal";
 import { PAYMENT_METHODS } from "./constants";
 
 export function CheckoutPage({ branches }: { branches: Branch[] }) {
@@ -59,6 +60,7 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
   const [showErrors, setShowErrors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  const [bankCode, setBankCode] = useState<string | null>(null);
 
   const branchId = selectedBranchId ?? BRANCH_IDS[0];
   const branch = branches.find((b) => b.id === branchId) ?? resolveDefaultBranch(branches);
@@ -107,40 +109,42 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
         ? "Vui lòng nhập đầy đủ thông tin nhận hàng."
         : "Vui lòng nhập đủ thông tin xuất hóa đơn VAT.";
 
-  const onPlace = async () => {
+  const isBank = checkout.paymentMethodId === "bank";
+
+  const finalize = async (presetId?: string) => {
     if (submitting) return;
-    if (!canPlace) {
-      setShowErrors(true);
-      return;
-    }
     setSubmitting(true);
     setPlaceError(null);
     try {
-      const order = await placeOrder({
-        branchId,
-        fulfillment: checkout.fulfillment,
-        recipient: { name: checkout.recipientName, phone: checkout.phone, email: checkout.email },
-        address: isPickup ? undefined : checkout.address,
-        shippingMethodId: shippingMethod.id,
-        paymentMethodId: checkout.paymentMethodId,
-        invoice: inv.requested
-          ? { companyName: inv.companyName, taxCode: inv.taxCode, address: inv.address, email: inv.email }
-          : undefined,
-        voucherCode: appliedCode,
-        items: okLines.map((l) => ({ id: l.id, name: l.name, price: l.price, quantity: l.quantity })),
-        subtotal,
-        shippingFee,
-        discount: productDiscount + shippingDiscount,
-        total,
-      });
+      const order = await placeOrder(
+        {
+          branchId,
+          fulfillment: checkout.fulfillment,
+          recipient: { name: checkout.recipientName, phone: checkout.phone, email: checkout.email },
+          address: isPickup ? undefined : checkout.address,
+          shippingMethodId: shippingMethod.id,
+          paymentMethodId: checkout.paymentMethodId,
+          invoice: inv.requested
+            ? { companyName: inv.companyName, taxCode: inv.taxCode, address: inv.address, email: inv.email }
+            : undefined,
+          voucherCode: appliedCode,
+          items: okLines.map((l) => ({ id: l.id, name: l.name, price: l.price, quantity: l.quantity })),
+          subtotal,
+          shippingFee,
+          discount: productDiscount + shippingDiscount,
+          total,
+        },
+        presetId,
+      );
       addOrder({
         id: order.id,
         createdAt: order.createdAt,
-        status: "Đang xử lý",
+        status: isBank ? "Chờ xác nhận thanh toán" : "Đang xử lý",
         recipientName: checkout.recipientName,
         phone: checkout.phone,
         email: checkout.email || undefined,
         fulfillment: checkout.fulfillment,
+        paymentMethodId: checkout.paymentMethodId,
         paymentLabel: PAYMENT_METHODS.find((m) => m.id === checkout.paymentMethodId)?.label ?? "—",
         branchName: isPickup ? branch?.name : undefined,
         address: isPickup
@@ -164,6 +168,21 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
       setPlaceError("Đặt hàng thất bại, vui lòng thử lại.");
       setSubmitting(false);
     }
+  };
+
+  const onPlace = () => {
+    if (submitting) return;
+    if (!canPlace) {
+      setShowErrors(true);
+      return;
+    }
+    // Bank transfer: show the account/QR step first; the order is placed only after
+    // the customer confirms they've paid (QR memo = the code we'll use).
+    if (isBank) {
+      setBankCode(newOrderId());
+      return;
+    }
+    finalize();
   };
 
   if (!mounted) {
@@ -227,6 +246,16 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
         invalidHint={invalidHint}
         error={placeError}
         onPlace={onPlace}
+      />
+
+      <BankTransferModal
+        open={bankCode !== null}
+        amount={total}
+        note={bankCode ?? ""}
+        currency={currency}
+        submitting={submitting}
+        onConfirm={() => bankCode && finalize(bankCode)}
+        onClose={() => setBankCode(null)}
       />
     </div>
   );

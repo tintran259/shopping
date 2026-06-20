@@ -32,11 +32,15 @@ export interface PlacedOrder {
   createdAt: string;
 }
 
-export async function placeOrder(input: PlaceOrderInput): Promise<PlacedOrder> {
+/** Order code generator — exposed so the bank-transfer QR can use the final code as memo. */
+export function newOrderId(): string {
+  return "DH" + Date.now().toString(36).toUpperCase().slice(-8);
+}
+
+export async function placeOrder(input: PlaceOrderInput, id: string = newOrderId()): Promise<PlacedOrder> {
   // Simulate the network round-trip. The BE persists `input` and returns the order;
-  // here we just acknowledge the payload and synthesize an id.
+  // here we just acknowledge the payload and use the (possibly preset) code.
   await new Promise((r) => setTimeout(r, 700));
   void input.items.length;
-  const id = "DH" + Date.now().toString(36).toUpperCase().slice(-8);
   return { id, createdAt: new Date().toISOString() };
 }
