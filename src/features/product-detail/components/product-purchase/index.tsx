@@ -129,9 +129,22 @@ export function ProductPurchase({
     const quantity = Math.min(qty, max);
     addLine({
       id: variant ? `${product.id}:${variant.id}` : product.id,
-      name: variant ? `${product.name} – ${Object.values(variant.options).join(", ")}` : product.name,
+      slug: product.slug,
+      name: product.name,
+      image: variant?.image ?? summary.thumbnail,
+      brand: product.brand?.name ?? undefined,
+      detail: variant
+        ? Object.entries(variant.options)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(" · ")
+        : undefined,
       price: price.amount,
+      compareAt: price.compareAt,
+      currency: price.currency,
       quantity,
+      maxStock: max,
+      branchStock: product.branchStock,
+      rating: summary.rating,
     });
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1600);

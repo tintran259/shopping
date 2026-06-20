@@ -310,7 +310,11 @@ export type SlotPosition =
   | "plp-bottom"
   | "pdp-top"
   | "pdp-content"
-  | "pdp-bottom";
+  | "pdp-bottom"
+  | "cart-top"
+  | "cart-bottom"
+  | "checkout-top"
+  | "checkout-bottom";
 
 /* -------------------------------------------------------------------------- */
 /* Normalized view models (what the UI renders)                               */

@@ -7,9 +7,11 @@ import { cn } from "@/lib/utils";
 import { discountPercent, formatPrice, isOnSale } from "@/lib/pricing";
 
 /**
- * Presentational product line row — shared by the wishlist and (later) the cart.
- * Dumb: quantity + remove are driven by callbacks. Optional detail props (rating,
- * badge, compareAt, detail/meta) flesh out the row; `aside` is an extra slot.
+ * Presentational product line row — shared by the wishlist and the cart.
+ * Layout: image on the left; everything else stacks in a single content column
+ * (info on top, then the quantity stepper + line subtotal underneath). Stacking —
+ * rather than a third horizontal column — is what keeps prices from colliding on
+ * narrow screens. Dumb: quantity + remove are driven by callbacks.
  */
 export function ProductLineRow({
   href,
@@ -57,7 +59,7 @@ export function ProductLineRow({
   const subtotal = price * quantity;
 
   return (
-    <div className="flex gap-4 py-4">
+    <div className="flex gap-3 py-4 sm:gap-4">
       <Link
         href={href}
         className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-muted/60 ring-1 ring-border/50 sm:size-24"
@@ -65,71 +67,75 @@ export function ProductLineRow({
         {image?.url && <Image src={image.url} alt={image.alt ?? ""} fill sizes="96px" className="object-cover" />}
       </Link>
 
-      {/* Info */}
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {brand && (
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {brand}
-          </span>
-        )}
-        <Link href={href} className="line-clamp-2 text-sm font-medium leading-snug hover:text-primary">
-          {name}
-        </Link>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        {/* Top: info + remove */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            {brand && (
+              <span className="block truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {brand}
+              </span>
+            )}
+            <Link href={href} className="line-clamp-2 text-sm font-medium leading-snug hover:text-primary">
+              {name}
+            </Link>
 
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
-          {rating && (
-            <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-              <span aria-hidden className="text-(--theme-rating,#f59e0b)">★</span>
-              <span className="font-medium text-foreground">{rating.average.toFixed(1)}</span>
-              <span>({rating.count})</span>
-            </span>
-          )}
-          {badge && (
-            <span className="rounded-full bg-(--theme-success,#059669) px-1.5 py-0.5 font-semibold text-white">
-              {badge}
-            </span>
-          )}
+            {(rating || badge) && (
+              <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+                {rating && (
+                  <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+                    <span aria-hidden className="text-(--theme-rating,#f59e0b)">★</span>
+                    <span className="font-medium text-foreground">{rating.average.toFixed(1)}</span>
+                    <span>({rating.count})</span>
+                  </span>
+                )}
+                {badge && (
+                  <span className="rounded-full bg-(--theme-success,#059669) px-1.5 py-0.5 font-semibold text-white">
+                    {badge}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {detail && <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>}
+
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              {priceFromLabel && <span className="text-xs text-muted-foreground">Từ</span>}
+              <span className={cn("text-sm font-semibold", sale && "text-(--theme-sale-price,inherit)")}>
+                {formatPrice(price, currency)}
+              </span>
+              {sale && (
+                <>
+                  <span className="text-xs text-muted-foreground line-through">
+                    {formatPrice(compareAt!, currency)}
+                  </span>
+                  <span className="rounded bg-(--theme-discount-badge-bg,var(--destructive)) px-1 text-[10px] font-bold text-(--theme-discount-badge-text,#fff)">
+                    -{discountPercent(priceObj)}%
+                  </span>
+                </>
+              )}
+            </div>
+
+            {unavailable && (
+              <p className="mt-1 text-xs text-(--theme-out-of-stock,var(--destructive))">{unavailableLabel}</p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="Xóa"
+            className="-mr-1 shrink-0 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-destructive"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+            </svg>
+          </button>
         </div>
 
-        {detail && <p className="truncate text-xs text-muted-foreground">{detail}</p>}
-
-        <div className="mt-0.5 flex items-baseline gap-2">
-          {priceFromLabel && <span className="text-xs text-muted-foreground">Từ</span>}
-          <span className={cn("text-sm font-semibold", sale && "text-(--theme-sale-price,inherit)")}>
-            {formatPrice(price, currency)}
-          </span>
-          {sale && (
-            <>
-              <span className="text-xs text-muted-foreground line-through">
-                {formatPrice(compareAt!, currency)}
-              </span>
-              <span className="rounded bg-(--theme-discount-badge-bg,var(--destructive)) px-1 text-[10px] font-bold text-(--theme-discount-badge-text,#fff)">
-                -{discountPercent(priceObj)}%
-              </span>
-            </>
-          )}
-        </div>
-
-        {unavailable && (
-          <p className="text-xs text-(--theme-out-of-stock,var(--destructive))">{unavailableLabel}</p>
-        )}
-      </div>
-
-      {/* Right: remove + quantity + subtotal */}
-      <div className="flex shrink-0 flex-col items-end justify-between gap-3">
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label="Xóa"
-          className="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-destructive"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-          </svg>
-        </button>
-
+        {/* Bottom: quantity stepper + line subtotal */}
         {!unavailable && (
-          <div className="flex flex-col items-end gap-1.5">
+          <div className="mt-auto flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
             <div className="inline-flex h-9 items-center rounded-lg border border-border">
               <button
                 type="button"
@@ -152,12 +158,13 @@ export function ProductLineRow({
               </button>
             </div>
             <div className="text-right">
-              <span className="text-sm font-bold tracking-tight">{formatPrice(subtotal, currency)}</span>
+              <span className="text-sm font-bold tracking-tight tabular-nums">{formatPrice(subtotal, currency)}</span>
               {max <= 20 && <span className="ml-2 text-[11px] text-muted-foreground">Còn {max}</span>}
             </div>
-            {aside}
           </div>
         )}
+
+        {aside}
       </div>
     </div>
   );

@@ -16,6 +16,10 @@ export const SLOTS = [
   "pdp-top",
   "pdp-content",
   "pdp-bottom",
+  "cart-top",
+  "cart-bottom",
+  "checkout-top",
+  "checkout-bottom",
 ] as const satisfies readonly SlotPosition[];
 
 export type SlotName = (typeof SLOTS)[number];

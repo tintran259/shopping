@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useCartStore } from "@/store/cart.store";
 import { useBranchStore } from "@/store/branch.store";
 import { BRANCH_IDS } from "@/services/branch.service";
+import { cartLineFromSummary } from "@/features/cart/utils";
 import type { ProductSummary } from "@/types/product";
 
 /**
@@ -34,7 +35,7 @@ export function QuickAddButton({
 
   const onAdd = () => {
     if (!availableAtBranch) return;
-    addLine({ id: product.id, name: product.name, price: product.price.amount, quantity: 1 });
+    addLine(cartLineFromSummary(product, 1, branchId));
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1500);
   };

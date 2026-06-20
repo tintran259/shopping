@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProductLineRow } from "@/components/shared/product-line-row";
+import { cartLineFromSummary } from "@/features/cart/utils";
 import { useWishlistStore } from "@/store/wishlist.store";
 import { useCartStore } from "@/store/cart.store";
 import { useBranchStore } from "@/store/branch.store";
@@ -61,12 +62,7 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         toggleItem(listId, item);
         continue;
       }
-      addLine({
-        id: item.id,
-        name: item.name,
-        price: item.price.amount,
-        quantity: Math.min(getQty(item.id), max),
-      });
+      addLine(cartLineFromSummary(item, Math.min(getQty(item.id), max), branchId));
       count += 1;
     }
     setConfirmAdd(false);
