@@ -7,7 +7,7 @@ import { SearchBar } from "./search-bar";
 import { CartButton } from "./cart-button";
 import { WishlistButton } from "./wishlist-button";
 import { BranchSelector } from "./branch-selector";
-import { UserIcon } from "./icons";
+import { AccountMenu } from "./account-menu";
 import { getGlobalSeo } from "@/cms/services/cms.service";
 import { getNavigation } from "@/services/navigation";
 import { getBranches } from "@/services/branch.service";
@@ -58,13 +58,7 @@ export async function Header() {
           {/* right: branch + actions */}
           <div className="flex items-center gap-0.5">
             <BranchSelector branches={branches} />
-            <Link
-              href="/account"
-              aria-label="Tài khoản"
-              className="inline-flex size-9 items-center justify-center rounded-md hover:bg-muted"
-            >
-              <UserIcon />
-            </Link>
+            <AccountMenu />
             <WishlistButton />
             <CartButton />
           </div>

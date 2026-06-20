@@ -37,6 +37,7 @@ export function OrderSummary({
   submitting,
   canPlace,
   invalidHint,
+  error,
   onPlace,
 }: {
   lines: CartLine[];
@@ -50,6 +51,7 @@ export function OrderSummary({
   submitting: boolean;
   canPlace: boolean;
   invalidHint?: string;
+  error?: string | null;
   onPlace: () => void;
 }) {
   const priceSavings = lines.reduce(
@@ -120,10 +122,17 @@ export function OrderSummary({
       <Button size="lg" className="mt-4 w-full" disabled={!canPlace || submitting} onClick={onPlace}>
         {submitting ? "Đang đặt hàng…" : "Đặt hàng"}
       </Button>
-      {!canPlace && invalidHint && (
-        <p className="mt-2 text-center text-xs text-(--theme-out-of-stock,var(--destructive))">
-          {invalidHint}
+      {error ? (
+        <p className="mt-2 text-center text-xs font-medium text-(--theme-out-of-stock,var(--destructive))">
+          {error}
         </p>
+      ) : (
+        !canPlace &&
+        invalidHint && (
+          <p className="mt-2 text-center text-xs text-(--theme-out-of-stock,var(--destructive))">
+            {invalidHint}
+          </p>
+        )
       )}
     </aside>
   );

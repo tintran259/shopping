@@ -18,6 +18,8 @@ interface WishlistState {
   clearList: (id: string) => void;
   /** Add/remove a product within a specific list. */
   toggleItem: (listId: string, item: ProductSummary) => void;
+  /** Wipe everything back to a single empty default list (used on logout). */
+  reset: () => void;
 }
 
 const uid = () =>
@@ -48,6 +50,7 @@ export const useWishlistStore = create<WishlistState>()(
           lists: s.lists.map((l) => (l.id === id ? { ...l, name: name.trim() || l.name } : l)),
         })),
       removeList: (id) => set((s) => ({ lists: s.lists.filter((l) => l.id !== id) })),
+      reset: () => set({ lists: [DEFAULT_LIST] }),
       clearList: (id) =>
         set((s) => ({ lists: s.lists.map((l) => (l.id === id ? { ...l, items: [] } : l)) })),
       toggleItem: (listId, item) =>

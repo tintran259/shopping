@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useCustomerStore } from "@/store/customer.store";
+import { useAuthStore } from "@/store/auth.store";
 
 type Channel = "email" | "phone";
 type Contact = { type: Channel; value: string; label: string };
@@ -22,8 +22,8 @@ export function NotifyStockButton({
   productName: string;
   className?: string;
 }) {
-  const email = useCustomerStore((s) => s.email);
-  const phone = useCustomerStore((s) => s.phone);
+  const email = useAuthStore((s) => s.user?.email ?? null);
+  const phone = useAuthStore((s) => s.user?.phone ?? null);
 
   const contacts: Contact[] = [
     email ? { type: "email" as const, value: email, label: "Email" } : null,

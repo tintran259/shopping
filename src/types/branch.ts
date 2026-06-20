@@ -10,6 +10,8 @@ export interface Branch {
   address: string;
   /** City / province — used to group branches in the modal. */
   city: string;
+  /** Province code (administrative API) — used to detect intra-province shipping. */
+  provinceCode?: string;
   phone: string | null;
   /** Pre-selected when the visitor has not chosen one yet. */
   isDefault: boolean;

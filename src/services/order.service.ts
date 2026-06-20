@@ -18,6 +18,7 @@ export interface PlaceOrderInput {
   address?: { province: string; district: string; ward: string; street: string };
   shippingMethodId: string;
   paymentMethodId: string;
+  invoice?: { companyName: string; taxCode: string; address: string; email: string };
   voucherCode?: string | null;
   items: OrderItemInput[];
   subtotal: number;
