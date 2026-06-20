@@ -40,7 +40,7 @@ export function DeliveryOptions({
               className={cn(
                 "rounded-xl border p-3 text-left transition",
                 active
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  ? "border-(--theme-select-border,var(--primary)) bg-primary/5 ring-1 ring-(--theme-select-border,var(--primary))"
                   : "border-border hover:border-foreground/30",
               )}
             >
@@ -67,7 +67,9 @@ export function DeliveryOptions({
                 key={m.id}
                 className={cn(
                   "flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition",
-                  active ? "border-primary ring-1 ring-primary" : "border-border hover:border-foreground/30",
+                  active
+                    ? "border-(--theme-select-border,var(--primary)) ring-1 ring-(--theme-select-border,var(--primary))"
+                    : "border-border hover:border-foreground/30",
                 )}
               >
                 <input

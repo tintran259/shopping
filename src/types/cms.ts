@@ -281,7 +281,7 @@ export const THEME_COLOR_KEYS = [
   "price", "salePrice", "discountBadgeBg", "discountBadgeText", "rating",
   "inStock", "outOfStock", "wishlistColor", "freeShipBadge",
   "success", "warning", "error", "info",
-  "borderColor", "divider",
+  "borderColor", "divider", "selectBorder",
   "inputBackground", "inputBorder", "inputFocusBorder", "inputText", "inputPlaceholder",
   "checkboxBackground", "checkboxBorder", "checkboxIcon", "checkboxDisabled",
 ] as const;

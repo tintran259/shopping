@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { logoutAndReset } from "@/lib/session";
-import { AccountNav } from "./components/account-nav";
-import { AccountDetails } from "./components/account-details";
+import { AccountNav } from "../account-nav";
 
 function initialsOf(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -15,7 +15,9 @@ function initialsOf(name: string) {
   return (first + last).toUpperCase() || "?";
 }
 
-export function AccountPage() {
+/** Shared account layout: profile header + sidebar nav + section content. Guards
+ *  access (redirects guests to /login). Used by every /account/* page. */
+export function AccountShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isAuthenticated, isWholesale, mounted } = useAuth();
 
@@ -24,7 +26,7 @@ export function AccountPage() {
   }, [mounted, isAuthenticated, router]);
 
   if (!mounted || !isAuthenticated || !user) {
-    return <div className="mx-auto h-72 w-full max-w-5xl animate-pulse rounded-2xl bg-muted" />;
+    return <div className="h-72 w-full animate-pulse rounded-2xl bg-muted" />;
   }
 
   const onLogout = () => {
@@ -33,9 +35,20 @@ export function AccountPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
-      {/* Profile header */}
-      <header className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-(--theme-card-background,var(--card)) p-5 sm:p-6">
+    <div className="w-full">
+      {/* Mobile: back to the hub. Desktop has the sidebar instead. */}
+      <Link
+        href="/account"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground lg:hidden"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m15 18-6-6 6-6" />
+        </svg>
+        Tài khoản
+      </Link>
+
+      {/* Profile header — desktop only (the hub shows it on mobile). */}
+      <header className="hidden flex-wrap items-center gap-4 rounded-2xl bg-(--theme-card-background,var(--card)) p-6 lg:flex">
         <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
           {initialsOf(user.name)}
         </div>
@@ -60,10 +73,11 @@ export function AccountPage() {
         </div>
       </header>
 
-      {/* Dashboard: nav + content */}
-      <div className="mt-5 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
-        <AccountNav onLogout={onLogout} />
-        <AccountDetails user={user} isWholesale={isWholesale} />
+      <div className="lg:mt-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-5">
+        <div className="hidden lg:block">
+          <AccountNav onLogout={onLogout} />
+        </div>
+        <div className="min-w-0">{children}</div>
       </div>
     </div>
   );

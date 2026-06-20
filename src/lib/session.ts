@@ -5,6 +5,7 @@ import { useCheckoutStore } from "@/store/checkout.store";
 import { useWishlistStore } from "@/store/wishlist.store";
 import { useBranchStore } from "@/store/branch.store";
 import { useOrderStore } from "@/store/order.store";
+import { useAddressStore } from "@/store/address.store";
 
 /**
  * Full client logout: clear the auth session AND every other persisted store so
@@ -20,4 +21,5 @@ export function logoutAndReset() {
   useWishlistStore.getState().reset();
   useBranchStore.getState().clear();
   useOrderStore.getState().clear();
+  useAddressStore.getState().clear();
 }
