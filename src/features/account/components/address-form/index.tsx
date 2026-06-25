@@ -18,8 +18,6 @@ const EMPTY: FormData = {
   phone: "",
   provinceCode: "",
   province: "",
-  districtCode: "",
-  district: "",
   wardCode: "",
   ward: "",
   street: "",

@@ -69,7 +69,7 @@ Cho cả **guest** (không bắt đăng nhập) lẫn user đã đăng nhập.
 2. **Phương thức nhận hàng**: Giao tận nơi **hoặc** Nhận tại chi nhánh (0đ, hiện info chi nhánh).
 3. **Thông tin nhận hàng**:
    - User có địa chỉ lưu → **danh sách chọn nhanh** (tự chọn mặc định) + "Giao đến địa chỉ khác".
-   - Nhập tay → Tỉnh/Quận/Phường bằng **combobox tìm kiếm** (data thật từ API, fallback list + text).
+   - Nhập tay → **Tỉnh → Phường (2 cấp, mô hình 2025)** bằng **combobox tìm kiếm**, data từ **shopping-api** (`/locations/...`), fallback list + text khi API lỗi.
 4. **Phí ship**: cùng tỉnh rẻ hơn (khớp theo `provinceCode`); tiêu chuẩn/nhanh; pickup = 0.
 5. **Hóa đơn VAT** (tùy chọn, prefill cho B2B): bật → bắt buộc tên cty + MST + email.
 6. **Voucher**: kế thừa từ giỏ; giảm đơn + giảm phí ship (FREESHIP).

@@ -19,7 +19,7 @@ function Label({ children, required }: { children: React.ReactNode; required?: b
 }
 
 const fullAddress = (a: UserAddress) =>
-  [a.street, a.ward, a.district, a.province].filter(Boolean).join(", ");
+  [a.street, a.ward, a.province].filter(Boolean).join(", ");
 
 /** Recipient contact + (for home delivery) the shipping address. Logged-in users with
  *  saved addresses get a quick-pick list; anyone can enter a new address instead. */
@@ -41,8 +41,6 @@ export function ContactAddress({ showErrors }: { showErrors: boolean }) {
     setAddress({
       provinceCode: a.provinceCode,
       province: a.province,
-      districtCode: a.districtCode,
-      district: a.district,
       wardCode: a.wardCode,
       ward: a.ward,
       street: a.street,
@@ -69,7 +67,7 @@ export function ContactAddress({ showErrors }: { showErrors: boolean }) {
   const goNew = () => {
     setManual(true);
     setSelectedId(null);
-    setAddress({ provinceCode: "", province: "", districtCode: "", district: "", wardCode: "", ward: "", street: "" });
+    setAddress({ provinceCode: "", province: "", wardCode: "", ward: "", street: "" });
   };
 
   const showList = isDelivery && hasSaved && !manual;

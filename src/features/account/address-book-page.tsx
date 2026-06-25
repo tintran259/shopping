@@ -9,7 +9,7 @@ import { AccountShell } from "./components/account-shell";
 import { AddressForm } from "./components/address-form";
 
 function fullAddress(a: UserAddress) {
-  return [a.street, a.ward, a.district, a.province].filter(Boolean).join(", ");
+  return [a.street, a.ward, a.province].filter(Boolean).join(", ");
 }
 
 export function AddressBookPage() {

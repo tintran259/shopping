@@ -2,13 +2,11 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export interface CheckoutAddress {
-  /** Administrative codes (open API) — used for cascading selects + shipping match. */
+  /** Administrative codes (2-tier model) — cascading selects + shipping match. */
   provinceCode: string;
-  districtCode: string;
   wardCode: string;
   /** Human-readable names (stored for display + the order record). */
   province: string;
-  district: string;
   ward: string;
   street: string;
 }
@@ -42,10 +40,8 @@ interface CheckoutState {
 
 const EMPTY_ADDRESS: CheckoutAddress = {
   provinceCode: "",
-  districtCode: "",
   wardCode: "",
   province: "",
-  district: "",
   ward: "",
   street: "",
 };
@@ -84,11 +80,11 @@ export const useCheckoutStore = create<CheckoutState>()(
     }),
     {
       name: "checkout",
-      version: 2,
-      // Address gained admin codes in v2 — reset just the address for old drafts.
+      version: 3,
+      // Address shape changed (v2: codes; v3: dropped district) — reset address for old drafts.
       migrate: (persisted, version) => {
         const s = (persisted ?? {}) as Partial<CheckoutState>;
-        if (version < 2) return { ...s, address: EMPTY_ADDRESS };
+        if (version < 3) return { ...s, address: EMPTY_ADDRESS };
         return s;
       },
     },

@@ -9,8 +9,6 @@ export interface UserAddress {
   phone: string;
   provinceCode: string;
   province: string;
-  districtCode: string;
-  district: string;
   wardCode: string;
   ward: string;
   street: string;

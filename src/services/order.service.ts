@@ -15,7 +15,7 @@ export interface PlaceOrderInput {
   branchId: string;
   fulfillment: "delivery" | "pickup";
   recipient: { name: string; phone: string; email?: string };
-  address?: { province: string; district: string; ward: string; street: string };
+  address?: { province: string; ward: string; street: string };
   shippingMethodId: string;
   paymentMethodId: string;
   invoice?: { companyName: string; taxCode: string; address: string; email: string };

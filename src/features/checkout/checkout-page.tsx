@@ -149,7 +149,7 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
         branchName: isPickup ? branch?.name : undefined,
         address: isPickup
           ? undefined
-          : [checkout.address.street, checkout.address.ward, checkout.address.district, checkout.address.province]
+          : [checkout.address.street, checkout.address.ward, checkout.address.province]
               .filter(Boolean)
               .join(", "),
         items: okLines.map((l) => ({ id: l.id, name: l.name, price: l.price, quantity: l.quantity, image: l.image })),
