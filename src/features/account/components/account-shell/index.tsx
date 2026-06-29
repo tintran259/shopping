@@ -29,10 +29,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
     return <div className="h-72 w-full animate-pulse rounded-2xl bg-muted" />;
   }
 
-  const onLogout = () => {
-    logoutAndReset();
-    router.push("/");
-  };
+  const onLogout = () => logoutAndReset();
 
   return (
     <div className="w-full">

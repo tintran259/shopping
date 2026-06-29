@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { useAddressStore } from "@/store/address.store";
+import { useAddresses } from "@/hooks/use-addresses";
 import type { UserAddress } from "@/store/address.store";
 import { AccountShell } from "./components/account-shell";
 import { AddressForm } from "./components/address-form";
@@ -13,11 +13,7 @@ function fullAddress(a: UserAddress) {
 }
 
 export function AddressBookPage() {
-  const addresses = useAddressStore((s) => s.addresses);
-  const add = useAddressStore((s) => s.add);
-  const update = useAddressStore((s) => s.update);
-  const remove = useAddressStore((s) => s.remove);
-  const setDefault = useAddressStore((s) => s.setDefault);
+  const { addresses, add, update, remove, setDefault } = useAddresses();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<UserAddress | undefined>(undefined);

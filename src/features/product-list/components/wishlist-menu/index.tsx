@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useWishlistStore } from "@/store/wishlist.store";
+import { useWishlist } from "@/hooks/use-wishlist";
 import type { ProductSummary } from "@/types/product";
 
 const PANEL_W = 288;
@@ -21,9 +21,7 @@ export function WishlistMenu({
   product: ProductSummary;
   className?: string;
 }) {
-  const lists = useWishlistStore((s) => s.lists);
-  const toggleItem = useWishlistStore((s) => s.toggleItem);
-  const createList = useWishlistStore((s) => s.createList);
+  const { lists, toggleItem, createList } = useWishlist();
   const inAny = lists.some((l) => l.items.some((i) => i.id === product.id));
 
   const [open, setOpen] = useState(false);
@@ -56,11 +54,11 @@ export function WishlistMenu({
     setOpen(true);
   };
 
-  const create = () => {
+  const create = async () => {
     const n = name.trim();
     if (!n) return;
-    toggleItem(createList(n), product);
     setName("");
+    toggleItem(await createList(n), product);
   };
 
   return (

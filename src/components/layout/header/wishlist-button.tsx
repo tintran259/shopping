@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useWishlistStore } from "@/store/wishlist.store";
+import { useWishlist } from "@/hooks/use-wishlist";
 import { HeartIcon } from "./icons";
 
 export function WishlistButton() {
-  // Distinct products saved across all lists.
-  const count = useWishlistStore(
-    (s) => new Set(s.lists.flatMap((l) => l.items.map((i) => i.id))).size,
-  );
+  // Distinct products saved across all lists (local for guests, account once logged in).
+  const { lists, ready } = useWishlist();
+  const count = ready
+    ? new Set(lists.flatMap((l) => l.items.map((i) => i.id))).size
+    : 0;
   return (
     <Link
       href="/wishlist"

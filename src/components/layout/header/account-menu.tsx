@@ -2,14 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { logoutAndReset } from "@/lib/session";
 import { UserIcon } from "./icons";
 
 export function AccountMenu() {
-  const router = useRouter();
   const { user, isAuthenticated, isWholesale, mounted } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -78,11 +76,7 @@ export function AccountMenu() {
                 <MenuLink href="/cart" onClick={() => setOpen(false)}>Giỏ hàng</MenuLink>
                 <button
                   type="button"
-                  onClick={() => {
-                    logoutAndReset();
-                    setOpen(false);
-                    router.push("/");
-                  }}
+                  onClick={() => logoutAndReset()}
                   className="block w-full px-4 py-2 text-left text-destructive transition hover:bg-muted"
                 >
                   Đăng xuất

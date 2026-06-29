@@ -36,10 +36,7 @@ export function AccountHubPage() {
     return <div className="h-72 w-full animate-pulse rounded-2xl bg-muted" />;
   }
 
-  const onLogout = () => {
-    logoutAndReset();
-    router.push("/");
-  };
+  const onLogout = () => logoutAndReset();
 
   return (
     // Hidden on desktop (it will have redirected to /account/profile).

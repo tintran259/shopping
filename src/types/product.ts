@@ -117,6 +117,8 @@ export interface ProductSummary {
   slug: string;
   name: string;
   thumbnail: ProductImage;
+  /** Cheapest/only variant id — the quick-add target (the cart needs a variant). */
+  defaultVariantId?: string | null;
   price: ProductPrice;
   /** True when variant prices differ ⇒ show "Từ …". */
   priceVaries?: boolean;

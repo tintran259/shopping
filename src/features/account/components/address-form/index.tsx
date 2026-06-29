@@ -68,7 +68,8 @@ export function AddressForm({
 
   if (!open) return null;
 
-  const valid = form.recipientName.trim() && form.phone.trim() && form.province && form.street.trim();
+  const valid =
+    form.recipientName.trim() && form.phone.trim() && form.province && form.ward && form.street.trim();
   const patch = (p: Partial<FormData>) => setForm((f) => ({ ...f, ...p }));
   const errCls = (v: string) => showErrors && !v.trim() && "border-destructive focus:border-destructive";
 

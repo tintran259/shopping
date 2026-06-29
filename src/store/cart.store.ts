@@ -11,6 +11,8 @@ import type { BranchStock } from "@/types/product";
  */
 export interface CartLine {
   id: string;
+  /** Purchasable variant id — required to sync the line to the BE cart. */
+  variantId?: string;
   slug: string;
   name: string;
   image?: { url?: string; alt?: string };
@@ -86,11 +88,11 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: "cart",
-      version: 1,
-      // v0 lines were thin ({id,name,price,quantity}) — they can't render the new
-      // row (no slug/image/stock). Drop them rather than ship broken rows.
+      version: 2,
+      // v0 lines were thin; v1 lines lack `variantId` (can't sync to the BE cart).
+      // Drop pre-v2 lines rather than ship un-syncable rows.
       migrate: (persisted, version) => {
-        if (version < 1) return { lines: [] } as Partial<CartState>;
+        if (version < 2) return { lines: [] } as Partial<CartState>;
         return persisted as Partial<CartState>;
       },
     },

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { useWishlistStore } from "@/store/wishlist.store";
+import { useWishlist } from "@/hooks/use-wishlist";
 import type { WishlistList } from "@/store/wishlist.store";
 
 const GRID = "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4";
@@ -29,13 +29,8 @@ function ListCover({ list }: { list: WishlistList }) {
 }
 
 export function WishlistPage() {
-  const lists = useWishlistStore((s) => s.lists);
-  const createList = useWishlistStore((s) => s.createList);
-  const removeList = useWishlistStore((s) => s.removeList);
+  const { lists, ready, createList, removeList } = useWishlist();
 
-  const [mounted, setMounted] = useState(false);
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client mount gate
-  useEffect(() => setMounted(true), []);
   const [name, setName] = useState("");
   const [pendingDelete, setPendingDelete] = useState<WishlistList | null>(null);
 
@@ -69,7 +64,7 @@ export function WishlistPage() {
         </div>
       </header>
 
-      {!mounted ? (
+      {!ready ? (
         <div className={GRID}>
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="aspect-square animate-pulse rounded-xl bg-muted" />

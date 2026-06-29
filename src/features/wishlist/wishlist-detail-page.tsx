@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -8,23 +8,17 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProductLineRow } from "@/components/shared/product-line-row";
 import { cartLineFromSummary } from "@/features/cart/utils";
-import { useWishlistStore } from "@/store/wishlist.store";
+import { useWishlist } from "@/hooks/use-wishlist";
 import { useCartStore } from "@/store/cart.store";
 import { useBranchStore } from "@/store/branch.store";
 import type { ProductSummary } from "@/types/product";
 
 export function WishlistDetailPage({ listId }: { listId: string }) {
   const router = useRouter();
-  const list = useWishlistStore((s) => s.lists.find((l) => l.id === listId));
-  const renameList = useWishlistStore((s) => s.renameList);
-  const removeList = useWishlistStore((s) => s.removeList);
-  const toggleItem = useWishlistStore((s) => s.toggleItem);
+  const { lists, ready, renameList, removeList, toggleItem } = useWishlist();
+  const list = lists.find((l) => l.id === listId);
   const addLine = useCartStore((s) => s.addLine);
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
-
-  const [mounted, setMounted] = useState(false);
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client mount gate
-  useEffect(() => setMounted(true), []);
 
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
@@ -71,7 +65,7 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
     }
   };
 
-  if (!mounted) {
+  if (!ready) {
     return (
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:py-10">
         <div className="mb-8 h-9 w-56 animate-pulse rounded bg-muted" />

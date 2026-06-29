@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useCheckoutStore } from "@/store/checkout.store";
-import { useAddressStore } from "@/store/address.store";
+import { useAddresses } from "@/hooks/use-addresses";
 import type { UserAddress } from "@/store/address.store";
 import { AddressFields } from "@/components/shared/address-fields";
 
@@ -26,7 +26,7 @@ const fullAddress = (a: UserAddress) =>
 export function ContactAddress({ showErrors }: { showErrors: boolean }) {
   const { recipientName, phone, email, address, fulfillment, update, setAddress } =
     useCheckoutStore();
-  const addresses = useAddressStore((s) => s.addresses);
+  const { addresses } = useAddresses();
   const isDelivery = fulfillment === "delivery";
   const hasSaved = addresses.length > 0;
 
@@ -47,16 +47,20 @@ export function ContactAddress({ showErrors }: { showErrors: boolean }) {
     });
   };
 
-  // On first mount: if there are saved addresses, pre-pick the default one.
+  // Pre-pick the default once saved addresses are available (they load async for
+  // logged-in users), unless the shopper already chose to enter a new address.
+  const autoPicked = useRef(false);
   useEffect(() => {
-    if (isDelivery && hasSaved && !manual && !selectedId) {
+    if (autoPicked.current || manual || selectedId) return;
+    if (isDelivery && hasSaved) {
+      autoPicked.current = true;
       const def = addresses.find((a) => a.isDefault) ?? addresses[0];
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time default pick
       setSelectedId(def.id);
       fillFrom(def);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isDelivery, hasSaved, manual, selectedId, addresses]);
 
   const pickSaved = (a: UserAddress) => {
     setSelectedId(a.id);
