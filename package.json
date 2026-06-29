@@ -9,9 +9,9 @@
   },
   "scripts": {
     "preinstall": "npx only-allow npm",
-    "dev": "TZ=Asia/Ho_Chi_Minh next dev",
+    "dev": "TZ=Asia/Ho_Chi_Minh next dev -p 3001",
     "build": "next build",
-    "start": "TZ=Asia/Ho_Chi_Minh next start",
+    "start": "TZ=Asia/Ho_Chi_Minh next start -p 3001",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

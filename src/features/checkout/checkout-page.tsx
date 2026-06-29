@@ -11,7 +11,7 @@ import { useVoucherStore } from "@/store/voucher.store";
 import { useCheckoutStore } from "@/store/checkout.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useOrderStore } from "@/store/order.store";
-import { BRANCH_IDS, resolveDefaultBranch } from "@/services/branch.service";
+import { resolveDefaultBranch } from "@/services/branch.service";
 import { getDeliveryMethods, PICKUP_METHOD } from "@/services/shipping.service";
 import { discountFor, findVoucher, shippingDiscountFor } from "@/services/voucher.service";
 import { newOrderId, placeOrder } from "@/services/order.service";
@@ -62,12 +62,13 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [bankCode, setBankCode] = useState<string | null>(null);
 
-  const branchId = selectedBranchId ?? BRANCH_IDS[0];
-  const branch = branches.find((b) => b.id === branchId) ?? resolveDefaultBranch(branches);
+  const branch =
+    branches.find((b) => b.id === selectedBranchId) ?? resolveDefaultBranch(branches);
+  const branchId = branch?.id;
 
   const availOf = (line: CartLine) => {
-    const entry = line.branchStock?.find((b) => b.branchId === branchId);
-    return line.branchStock ? (entry?.inStock ?? false) : true;
+    if (!line.branchStock || !branchId) return true;
+    return line.branchStock.find((b) => b.branchId === branchId)?.inStock ?? false;
   };
   const okLines = lines.filter(availOf);
   const oosCount = lines.length - okLines.length;
@@ -118,7 +119,7 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
     try {
       const order = await placeOrder(
         {
-          branchId,
+          branchId: branchId ?? "",
           fulfillment: checkout.fulfillment,
           recipient: { name: checkout.recipientName, phone: checkout.phone, email: checkout.email },
           address: isPickup ? undefined : checkout.address,

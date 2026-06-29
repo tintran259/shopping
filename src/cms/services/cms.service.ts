@@ -95,9 +95,7 @@ const CMS_TTL_SECONDS = 300;
 
 async function cmsFetch<T>(path: string, tags: string[]): Promise<T> {
   const res = await fetch(`${env.strapiUrl}/api${path}`, {
-    headers: env.strapiToken
-      ? { Authorization: `Bearer ${env.strapiToken}` }
-      : {},
+    headers: env.strapiToken ? { Authorization: `Bearer ${env.strapiToken}` } : {},
     next: { tags: [CMS_TAG, ...tags], revalidate: CMS_TTL_SECONDS },
   });
 
@@ -212,7 +210,6 @@ export async function getBanner(documentId: string): Promise<BannerVM | null> {
 export async function getGlobalSeo(): Promise<GlobalSeoVM | null> {
   try {
     const query = buildQuery({ populate: { logo: true, favicon: true } });
-    console.log("query:", query);
 
     const json = await cmsFetch<StrapiResponse<StrapiGlobalSeo | null>>(
       `/global-seo-setting?${query}`,

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/store/cart.store";
 import { useBranchStore } from "@/store/branch.store";
-import { BRANCH_IDS } from "@/services/branch.service";
 import { cartLineFromSummary } from "@/features/cart/utils";
 import type { ProductSummary } from "@/types/product";
 
@@ -27,9 +26,10 @@ export function QuickAddButton({
   // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client mount gate
   useEffect(() => setMounted(true), []);
 
-  const branchId = selectedBranchId ?? BRANCH_IDS[0];
+  const branchId = selectedBranchId ?? undefined;
+
   const availableAtBranch =
-    !mounted || !product.branchStock
+    !mounted || !product.branchStock || !branchId
       ? product.inStock
       : (product.branchStock.find((b) => b.branchId === branchId)?.inStock ?? false);
 

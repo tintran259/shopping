@@ -11,7 +11,6 @@ import { cartLineFromSummary } from "@/features/cart/utils";
 import { useWishlistStore } from "@/store/wishlist.store";
 import { useCartStore } from "@/store/cart.store";
 import { useBranchStore } from "@/store/branch.store";
-import { BRANCH_IDS } from "@/services/branch.service";
 import type { ProductSummary } from "@/types/product";
 
 export function WishlistDetailPage({ listId }: { listId: string }) {
@@ -34,10 +33,10 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmAdd, setConfirmAdd] = useState(false);
 
-  const branchId = selectedBranchId ?? BRANCH_IDS[0];
+  const branchId = selectedBranchId ?? undefined;
   const availOf = (item: ProductSummary) => {
-    const entry = item.branchStock?.find((b) => b.branchId === branchId);
-    const available = item.branchStock ? (entry?.inStock ?? false) : item.inStock;
+    const entry = branchId ? item.branchStock?.find((b) => b.branchId === branchId) : undefined;
+    const available = !item.branchStock || !branchId ? item.inStock : (entry?.inStock ?? false);
     return { available, max: available ? entry?.quantity || 99 : 0 };
   };
   const getQty = (id: string) => qtyMap[id] ?? 1;

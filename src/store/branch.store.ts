@@ -23,6 +23,12 @@ export const useBranchStore = create<BranchState>()(
       select: (id) => set({ selectedBranchId: id }),
       clear: () => set({ selectedBranchId: null }),
     }),
-    { name: "branch" },
+    {
+      name: "branch",
+      // v1: branch ids became BE UUIDs. Drop any stale mock id ("hcm-q1", …) so
+      // it isn't sent as `branchId` (BE rejects non-UUID → empty list).
+      version: 1,
+      migrate: () => ({ selectedBranchId: null }) as Partial<BranchState>,
+    },
   ),
 );

@@ -14,10 +14,11 @@ export const env = {
   strapiUrl: process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://localhost:1337",
   /** Server-only Strapi API token (never exposed to the client). */
   strapiToken: process.env.STRAPI_API_TOKEN,
-  /** Base URL of the commerce/storefront API. */
-  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api",
+  /** Base URL of the commerce API. Use 127.0.0.1 (not "localhost") so Node's
+   *  server-side fetch doesn't hit the IPv6 ::1 / IPv4 mismatch (ECONNREFUSED). */
+  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:3000/api",
   /** Public origin of the storefront — for canonical URLs, OG tags, JSON-LD. */
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001",
 } as const;
 
 export { required };

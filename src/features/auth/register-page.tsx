@@ -28,8 +28,8 @@ export function RegisterPage() {
     e.preventDefault();
     setLocalError(null);
     if (!name.trim() || !email.trim() || !password) return;
-    if (password.length < 6) {
-      setLocalError("Mật khẩu cần tối thiểu 6 ký tự.");
+    if (password.length < 8) {
+      setLocalError("Mật khẩu cần tối thiểu 8 ký tự.");
       return;
     }
     if (password !== confirm) {
@@ -74,7 +74,7 @@ export function RegisterPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Tối thiểu 6 ký tự"
+            placeholder="Tối thiểu 8 ký tự"
             className={inputCls}
             autoComplete="new-password"
           />

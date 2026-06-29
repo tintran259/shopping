@@ -47,8 +47,8 @@ export function QuickRegisterModal({
     e.preventDefault();
     setLocalError(null);
     if (!name.trim() || !email.trim()) return;
-    if (password.length < 6) {
-      setLocalError("Mật khẩu cần tối thiểu 6 ký tự.");
+    if (password.length < 8) {
+      setLocalError("Mật khẩu cần tối thiểu 8 ký tự.");
       return;
     }
     const ok = await register({ name, email, phone, password });
@@ -97,7 +97,7 @@ export function QuickRegisterModal({
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Mật khẩu (tối thiểu 6 ký tự)"
+            placeholder="Mật khẩu (tối thiểu 8 ký tự)"
             className={inputCls}
             autoFocus
           />

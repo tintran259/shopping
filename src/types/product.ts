@@ -172,6 +172,8 @@ export interface ProductListParams {
   priceMax?: number;
   /** Generic facet selections: facetKey → selected values. */
   filters?: Record<string, string[]>;
+  /** Scope the list to a branch (only products carried there). */
+  branchId?: string;
 }
 
 /** How a facet renders + filters. */

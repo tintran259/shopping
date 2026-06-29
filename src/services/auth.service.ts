@@ -1,12 +1,12 @@
+import { env } from "@/config/env";
+
 /**
- * Auth adapter (storefront/BE-owned). Mock-first so the whole login/register/account
- * flow is exercisable; swap the bodies for the real BE (Strapi users-permissions or a
- * commerce BE) later — the shapes here are what the UI depends on.
- *
- * B2B is NOT self-registered: business accounts are provisioned in the back office and
- * the customer is given credentials. The storefront only offers PERSONAL registration;
- * both account types log in through the same `login()`.
+ * Auth adapter → commerce BE (shopping-api): `POST /auth/register|login`,
+ * `GET /auth/me`. B2C self-registers; B2B is provisioned in the back office and
+ * logs in through the same `login()`. The BE customer shape is mapped to the
+ * storefront `AuthUser` here.
  */
+const API = env.apiUrl;
 
 export type AccountType = "personal" | "business";
 
@@ -26,53 +26,6 @@ export interface AuthResult {
   user: AuthUser;
 }
 
-const delay = (ms = 500) => new Promise((r) => setTimeout(r, ms));
-const mockToken = (id: string) => `mock.${id}.${Date.now().toString(36)}`;
-
-/**
- * Demo accounts (password `123456` for both) so both paths are testable immediately:
- *   - B2C: khachhang@example.com  / 0901234567
- *   - B2B: sales@dacsan.com       / 0987654321  (Doanh nghiệp)
- * NOTE: accounts registered at runtime live in memory only — they survive within the
- * session but not a full reload (the persisted auth store keeps you logged in regardless).
- */
-const ACCOUNTS: Array<{ password: string; user: AuthUser }> = [
-  {
-    password: "123456",
-    user: {
-      id: "u-personal",
-      name: "Nguyễn Văn A",
-      email: "khachhang@example.com",
-      phone: "0901234567",
-      type: "personal",
-    },
-  },
-  {
-    password: "123456",
-    user: {
-      id: "u-business",
-      name: "Trần Thị B",
-      email: "sales@dacsan.com",
-      phone: "0987654321",
-      type: "business",
-      companyName: "Công ty TNHH Đặc Sản Tây Nguyên",
-      taxCode: "0312345678",
-    },
-  },
-];
-
-const matchesIdentifier = (user: AuthUser, id: string) => {
-  const v = id.trim().toLowerCase();
-  return user.email?.toLowerCase() === v || user.phone === id.trim();
-};
-
-export async function login(identifier: string, password: string): Promise<AuthResult> {
-  await delay();
-  const found = ACCOUNTS.find((a) => matchesIdentifier(a.user, identifier) && a.password === password);
-  if (!found) throw new Error("Email/SĐT hoặc mật khẩu không đúng");
-  return { token: mockToken(found.user.id), user: found.user };
-}
-
 export interface RegisterPersonalInput {
   name: string;
   email: string;
@@ -80,24 +33,73 @@ export interface RegisterPersonalInput {
   password: string;
 }
 
-export async function registerPersonal(input: RegisterPersonalInput): Promise<AuthResult> {
-  await delay();
-  const email = input.email.trim().toLowerCase();
-  if (ACCOUNTS.some((a) => a.user.email?.toLowerCase() === email)) {
-    throw new Error("Email này đã được đăng ký");
-  }
-  const user: AuthUser = {
-    id: "u-" + Date.now().toString(36),
-    name: input.name.trim(),
-    email: input.email.trim(),
-    phone: input.phone?.trim() || null,
-    type: "personal",
-  };
-  ACCOUNTS.push({ password: input.password, user });
-  return { token: mockToken(user.id), user };
+interface ApiCustomer {
+  id: string;
+  email?: string | null;
+  phone?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  type?: string;
+  b2bProfile?: { companyName?: string; taxCode?: string } | null;
 }
 
-/** Wholesale (B2B) gate — drives wholesale pricing / VAT invoice (Phase 2). */
+function mapUser(c: ApiCustomer): AuthUser {
+  const name = [c.firstName, c.lastName].filter(Boolean).join(" ").trim();
+  return {
+    id: c.id,
+    name: name || c.email || "Khách hàng",
+    email: c.email ?? null,
+    phone: c.phone ?? null,
+    type: c.type === "b2b" ? "business" : "personal",
+    companyName: c.b2bProfile?.companyName,
+    taxCode: c.b2bProfile?.taxCode,
+  };
+}
+
+/** Full current user (with phone + b2b profile) for an access token. */
+async function me(token: string): Promise<AuthUser | null> {
+  const res = await fetch(`${API}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  return mapUser((await res.json()) as ApiCustomer);
+}
+
+/** BE login is by email; the storefront passes the identifier as email. */
+export async function login(identifier: string, password: string): Promise<AuthResult> {
+  const res = await fetch(`${API}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: identifier.trim(), password }),
+  });
+  if (!res.ok) throw new Error("Email/SĐT hoặc mật khẩu không đúng");
+  const data = (await res.json()) as { accessToken: string; user: ApiCustomer };
+  const user = (await me(data.accessToken)) ?? mapUser(data.user);
+  return { token: data.accessToken, user };
+}
+
+export async function registerPersonal(input: RegisterPersonalInput): Promise<AuthResult> {
+  const [firstName, ...rest] = input.name.trim().split(/\s+/);
+  const res = await fetch(`${API}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: input.email.trim(),
+      password: input.password,
+      firstName: firstName || undefined,
+      lastName: rest.join(" ") || undefined,
+      phone: input.phone?.trim() || undefined,
+    }),
+  });
+  if (res.status === 409) throw new Error("Email này đã được đăng ký");
+  if (!res.ok) throw new Error("Đăng ký thất bại, vui lòng thử lại");
+  const data = (await res.json()) as { accessToken: string; user: ApiCustomer };
+  const user = (await me(data.accessToken)) ?? mapUser(data.user);
+  return { token: data.accessToken, user };
+}
+
+/** Wholesale (B2B) gate — drives wholesale pricing / VAT invoice. */
 export function isWholesale(user: AuthUser | null): boolean {
   return user?.type === "business";
 }

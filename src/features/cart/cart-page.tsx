@@ -11,7 +11,6 @@ import { formatPrice } from "@/lib/pricing";
 import { useCartStore } from "@/store/cart.store";
 import { useBranchStore } from "@/store/branch.store";
 import { useVoucherStore } from "@/store/voucher.store";
-import { BRANCH_IDS } from "@/services/branch.service";
 import { discountFor, findVoucher } from "@/services/voucher.service";
 import type { CartLine } from "@/store/cart.store";
 
@@ -33,10 +32,11 @@ export function CartPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRemoveOos, setConfirmRemoveOos] = useState(false);
 
-  const branchId = selectedBranchId ?? BRANCH_IDS[0];
   const availOf = (line: CartLine) => {
-    const entry = line.branchStock?.find((b) => b.branchId === branchId);
-    const available = line.branchStock ? (entry?.inStock ?? false) : true;
+    const available =
+      !line.branchStock || !selectedBranchId
+        ? true
+        : (line.branchStock.find((b) => b.branchId === selectedBranchId)?.inStock ?? false);
     return { available, max: line.maxStock || 1 };
   };
 

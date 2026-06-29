@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { Branch } from "@/types/branch";
 import { useBranchStore } from "@/store/branch.store";
 import { resolveDefaultBranch } from "@/services/branch.service";
@@ -16,6 +17,34 @@ export function BranchSelector({ branches }: { branches: Branch[] }) {
   const [open, setOpen] = useState(false);
   const selectedId = useBranchStore((s) => s.selectedBranchId);
   const select = useBranchStore((s) => s.select);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Branch transport = URL: persist to the store (UI/default) AND reflect in the
+  // URL so the CSR product list refetches for the chosen branch. Read the current
+  // query from window at click time (avoids useSearchParams' static-prerender bailout).
+  const handleSelect = (id: string) => {
+    select(id);
+    const next = new URLSearchParams(
+      typeof window !== "undefined" ? window.location.search : "",
+    );
+    next.set("branch", id);
+    next.delete("page");
+    router.push(next.toString() ? `${pathname}?${next.toString()}` : pathname, { scroll: false });
+  };
+
+  // Persist the default branch id once branches load, so client features
+  // (cart/wishlist/quick-add) have a concrete branch id without a hardcoded list.
+  // Also self-heals a stale persisted id (e.g. an old mock id) that no longer
+  // matches any BE branch.
+  useEffect(() => {
+    if (!branches.length) return;
+    const valid = selectedId && branches.some((b) => b.id === selectedId);
+    if (!valid) {
+      const def = resolveDefaultBranch(branches);
+      if (def) select(def.id);
+    }
+  }, [selectedId, branches, select]);
 
   if (branches.length === 0) return null;
 
@@ -44,7 +73,7 @@ export function BranchSelector({ branches }: { branches: Branch[] }) {
         <BranchModal
           branches={branches}
           selectedId={current?.id ?? null}
-          onSelect={select}
+          onSelect={handleSelect}
           onClose={() => setOpen(false)}
         />
       )}

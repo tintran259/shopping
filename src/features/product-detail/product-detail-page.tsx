@@ -18,21 +18,21 @@ function productJsonLd(p: Product) {
 
   const offers = p.variants.length
     ? {
-        "@type": "AggregateOffer",
-        priceCurrency: p.price.currency,
-        lowPrice: Math.min(...p.variants.map((v) => v.price.amount)),
-        highPrice: Math.max(...p.variants.map((v) => v.price.amount)),
-        offerCount: p.variants.length,
-        availability,
-        url,
-      }
+      "@type": "AggregateOffer",
+      priceCurrency: p.price.currency,
+      lowPrice: Math.min(...p.variants.map((v) => v.price.amount)),
+      highPrice: Math.max(...p.variants.map((v) => v.price.amount)),
+      offerCount: p.variants.length,
+      availability,
+      url,
+    }
     : {
-        "@type": "Offer",
-        priceCurrency: p.price.currency,
-        price: p.price.amount,
-        availability,
-        url,
-      };
+      "@type": "Offer",
+      priceCurrency: p.price.currency,
+      price: p.price.amount,
+      availability,
+      url,
+    };
 
   return {
     "@context": "https://schema.org",
@@ -46,12 +46,12 @@ function productJsonLd(p: Product) {
     offers,
     ...(p.rating
       ? {
-          aggregateRating: {
-            "@type": "AggregateRating",
-            ratingValue: p.rating.average,
-            reviewCount: p.rating.count,
-          },
-        }
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: p.rating.average,
+          reviewCount: p.rating.count,
+        },
+      }
       : {}),
   };
 }

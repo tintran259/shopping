@@ -14,7 +14,9 @@ import type { ProductListParams, ProductSort } from "@/types/product";
 
 export type RawSearchParams = Record<string, string | string[] | undefined>;
 
-const RESERVED = new Set(["q", "sort", "page", "min", "max"]);
+// Reserved params drive search/sort/paging/price/branch — NOT generic facets.
+// `branch` is the active-branch transport; it must not become a facet filter.
+const RESERVED = new Set(["q", "sort", "page", "min", "max", "branch"]);
 
 const SORTS: ProductSort[] = [
   "relevance",
