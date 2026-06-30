@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
-import { useCartStore } from "@/store/cart.store";
+import { useCart } from "@/hooks/use-cart";
 import { useBranchStore } from "@/store/branch.store";
 import { useVoucherStore } from "@/store/voucher.store";
 import { useCheckoutStore } from "@/store/checkout.store";
@@ -27,8 +27,7 @@ import { PAYMENT_METHODS } from "./constants";
 
 export function CheckoutPage({ branches }: { branches: Branch[] }) {
   const router = useRouter();
-  const lines = useCartStore((s) => s.lines);
-  const clearCart = useCartStore((s) => s.clear);
+  const { lines, clear: clearCart } = useCart();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
   const appliedCode = useVoucherStore((s) => s.appliedCode);
   const clearVoucher = useVoucherStore((s) => s.clear);

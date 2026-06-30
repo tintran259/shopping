@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProductLineRow } from "@/components/shared/product-line-row";
 import { VoucherSection } from "@/features/cart/components/voucher";
 import { formatPrice } from "@/lib/pricing";
-import { useCartStore } from "@/store/cart.store";
+import { useCart } from "@/hooks/use-cart";
 import { useBranchStore } from "@/store/branch.store";
 import { useVoucherStore } from "@/store/voucher.store";
 import { discountFor, findVoucher } from "@/services/voucher.service";
@@ -17,17 +17,9 @@ import type { CartLine } from "@/store/cart.store";
 const FREE_SHIP_THRESHOLD = 500_000;
 
 export function CartPage() {
-  const lines = useCartStore((s) => s.lines);
-  const setQuantity = useCartStore((s) => s.setQuantity);
-  const removeLine = useCartStore((s) => s.removeLine);
-  const removeMany = useCartStore((s) => s.removeMany);
-  const clear = useCartStore((s) => s.clear);
+  const { lines, ready, setQuantity, removeLine, removeMany, clear } = useCart();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
   const appliedCode = useVoucherStore((s) => s.appliedCode);
-
-  const [mounted, setMounted] = useState(false);
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client mount gate
-  useEffect(() => setMounted(true), []);
 
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRemoveOos, setConfirmRemoveOos] = useState(false);
@@ -40,7 +32,7 @@ export function CartPage() {
     return { available, max: line.maxStock || 1 };
   };
 
-  if (!mounted) {
+  if (!ready) {
     return (
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-4">

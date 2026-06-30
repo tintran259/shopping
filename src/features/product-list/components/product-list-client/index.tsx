@@ -1,9 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { getProducts } from "@/services/product.service";
+import { resolveDefaultBranch } from "@/services/branch.service";
 import { useBranchStore } from "@/store/branch.store";
+import type { Branch } from "@/types/branch";
 import { activeFilterCount, paramsKey, parseProductParams } from "../../utils/search-params";
 import { FilterControls } from "../filter-controls";
 import { ActiveFilters } from "../active-filters";
@@ -17,13 +20,30 @@ import { Pagination } from "../pagination";
  * fetches via React Query (keyed on params + branch), and refetches when the
  * branch changes. CMS slots stay in the server wrapper.
  */
-export function ProductListClient({ category, title }: { category: string; title: string }) {
+export function ProductListClient({
+  category,
+  title,
+  branches,
+}: {
+  category: string;
+  title: string;
+  branches: Branch[];
+}) {
   const searchParams = useSearchParams();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
-  // Only forward a real branch UUID; a stale/non-uuid value would 400 at the BE.
+
+  // Gate the (single) fetch on client mount so it runs with the resolved branch,
+  // never branchless-then-branch.
+  const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client mount gate
+  useEffect(() => setMounted(true), []);
+
+  // Resolve the branch synchronously: a valid URL/store UUID wins, else fall back
+  // to the default branch (from the SSR list) — so the first fetch is already
+  // branch-scoped and the header's default-heal becomes a no-op.
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const rawBranch = searchParams.get("branch") ?? selectedBranchId ?? "";
-  const branchId = UUID_RE.test(rawBranch) ? rawBranch : undefined;
+  const chosen = searchParams.get("branch") ?? selectedBranchId ?? "";
+  const branchId = UUID_RE.test(chosen) ? chosen : resolveDefaultBranch(branches)?.id;
 
   const sp = Object.fromEntries(searchParams.entries());
   const params = { ...parseProductParams(sp, category), branchId };
@@ -31,10 +51,12 @@ export function ProductListClient({ category, title }: { category: string; title
   const { data, isLoading } = useQuery({
     queryKey: ["products", paramsKey(params), branchId ?? ""],
     queryFn: () => getProducts(params),
+    enabled: mounted,
     // No placeholderData → switching branch/filter (uncached key) shows the
     // skeleton; revisiting a cached key stays instant.
     staleTime: 30_000,
   });
+  const loading = !mounted || isLoading;
 
   const facets = data?.facets ?? [];
   const items = data?.items ?? [];
@@ -58,7 +80,7 @@ export function ProductListClient({ category, title }: { category: string; title
           {title}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {isLoading ? "Đang tải…" : `${pagination.total} sản phẩm · giao nhanh toàn quốc`}
+          {loading ? "Đang tải…" : `${pagination.total} sản phẩm · giao nhanh toàn quốc`}
         </p>
       </header>
 
@@ -88,7 +110,7 @@ export function ProductListClient({ category, title }: { category: string; title
 
           <div className="mb-5 flex items-center justify-between border-b border-border/60 pb-3 text-sm text-muted-foreground">
             <span>
-              {isLoading ? (
+              {loading ? (
                 "Đang tải sản phẩm…"
               ) : (
                 <>
@@ -97,14 +119,14 @@ export function ProductListClient({ category, title }: { category: string; title
                 </>
               )}
             </span>
-            {!isLoading && pagination.totalPages > 0 && (
+            {!loading && pagination.totalPages > 0 && (
               <span className="hidden sm:inline">
                 Trang {pagination.page}/{pagination.totalPages}
               </span>
             )}
           </div>
 
-          {isLoading ? (
+          {loading ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               {Array.from({ length: 9 }).map((_, i) => (
                 <div key={i} className="aspect-4/5 animate-pulse rounded-2xl bg-muted" />

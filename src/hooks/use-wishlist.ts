@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth.store";
 import { useWishlistStore, type WishlistList } from "@/store/wishlist.store";
@@ -17,6 +17,10 @@ import {
 } from "@/services/wishlist.service";
 
 const QK = ["wishlist"] as const;
+
+// Merge runs once per token across ALL hook instances (every product card mounts
+// this hook → a per-instance guard would fan out into many wishlist refetches).
+const mergedTokens = new Set<string>();
 
 export interface UseWishlist {
   lists: WishlistList[];
@@ -84,14 +88,16 @@ export function useWishlist(): UseWishlist {
     [qc],
   );
 
-  // Merge the guest's local lists once per login (re-runs when the token changes).
-  const mergedFor = useRef<string | null>(null);
+  // Merge the guest's local lists once per login, guarded across all instances
+  // (→ at most one merge + one refetch, not one per product card).
   useEffect(() => {
-    if (!isAuth || !mounted || mergedFor.current === token) return;
-    mergedFor.current = token as string;
+    if (!isAuth || !mounted || mergedTokens.has(token as string)) return;
+    mergedTokens.add(token as string);
     void mergeGuestWishlist(token as string)
-      .catch(() => {})
-      .finally(invalidate);
+      .then((merged) => {
+        if (merged) invalidate();
+      })
+      .catch(() => {});
   }, [isAuth, mounted, token, invalidate]);
 
   const createList = useCallback<UseWishlist["createList"]>(

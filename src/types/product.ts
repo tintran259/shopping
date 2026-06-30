@@ -90,7 +90,10 @@ export interface ProductVariant {
   /** Selected value per option name: { "Quy cách":"500g" }. */
   options: Record<string, string>;
   price: ProductPrice;
+  /** Total stock across all branches. */
   stock: number;
+  /** Per-branch stock for THIS variant (drives the "còn N tại chi nhánh" line). */
+  branchStock?: BranchStock[];
   image?: ProductImage;
 }
 

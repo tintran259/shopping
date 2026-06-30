@@ -19,6 +19,7 @@ export function cartLineFromSummary(
   const entry = branchId ? p.branchStock?.find((b) => b.branchId === branchId) : undefined;
   return {
     id: p.id,
+    variantId: p.defaultVariantId ?? undefined,
     slug: p.slug,
     name: p.name,
     image: p.thumbnail,

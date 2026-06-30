@@ -90,14 +90,14 @@ export async function removeWishlistItem(token: string, itemId: string): Promise
 }
 
 // Shared in-flight guard so concurrent hook instances merge exactly once.
-let mergePromise: Promise<void> | null = null;
+let mergePromise: Promise<boolean> | null = null;
 
 /**
  * Push the guest's local lists into the logged-in account (idempotent on the BE),
- * then reset the local store. Default list → account default; named lists are
- * matched by name (created if missing).
+ * then reset the local store. Resolves `true` if anything was merged (caller can
+ * refetch only then). Named lists are matched by name (created if missing).
  */
-export function mergeGuestWishlist(token: string): Promise<void> {
+export function mergeGuestWishlist(token: string): Promise<boolean> {
   if (mergePromise) return mergePromise;
   mergePromise = doMerge(token).finally(() => {
     mergePromise = null;
@@ -105,9 +105,9 @@ export function mergeGuestWishlist(token: string): Promise<void> {
   return mergePromise;
 }
 
-async function doMerge(token: string): Promise<void> {
+async function doMerge(token: string): Promise<boolean> {
   const local = useWishlistStore.getState().lists.filter((l) => l.items.length);
-  if (!local.length) return;
+  if (!local.length) return false;
 
   const remote = await fetchWishlists(token);
   const remoteByName = new Map(remote.map((r) => [r.name.toLowerCase(), r]));
@@ -123,4 +123,5 @@ async function doMerge(token: string): Promise<void> {
     }
   }
   useWishlistStore.getState().reset();
+  return true;
 }

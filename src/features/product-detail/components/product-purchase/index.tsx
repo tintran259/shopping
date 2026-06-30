@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { discountPercent, formatPrice, isOnSale } from "@/lib/pricing";
-import { useCartStore } from "@/store/cart.store";
+import { useCart } from "@/hooks/use-cart";
 import { useBranchStore } from "@/store/branch.store";
 import { resolveDefaultBranch } from "@/services/branch.service";
 import type { Branch } from "@/types/branch";
@@ -51,7 +51,7 @@ export function ProductPurchase({
   summary: ProductSummary;
   branches: Branch[];
 }) {
-  const addLine = useCartStore((s) => s.addLine);
+  const { addLine, lines } = useCart();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
   const branch =
     branches.find((b) => b.id === selectedBranchId) ?? resolveDefaultBranch(branches);
@@ -85,6 +85,7 @@ export function ProductPurchase({
   const sale = isOnSale(price);
   const stock = hasVariants ? (variant?.stock ?? 0) : product.inStock ? 99 : 0;
   const inStock = stock > 0;
+
   // Per-branch availability for this product.
   const branchStock = product.branchStock ?? [];
   const allBranchesOut = branchStock.length > 0 && branchStock.every((b) => !b.inStock);
@@ -98,9 +99,25 @@ export function ProductPurchase({
   const isPreorder = product.status === "preorder" && !hasVariants;
   // Purchasable only if the SELECTED branch carries it AND the chosen variant has stock.
   const outOfStock = !isPreorder && (!inStock || !selectedBranchInStock);
-  const max = stock || 99;
-  /** Show a real remaining count (variant stock or genuinely low stock). */
-  const showStockCount = inStock && selectedBranchInStock && stock <= 20;
+  // Remaining for THIS variant at the SELECTED branch (falls back to total stock when
+  // per-branch data is absent). Drives the qty cap + the "còn N" line.
+  const branchEntry = branch
+    ? variant?.branchStock?.find((b) => b.branchId === branch.id)
+    : undefined;
+  const branchQty = branchEntry ? (branchEntry.quantity ?? 0) : stock;
+
+  // Quantity of THIS variant already in the cart — the cap is stock minus that, so
+  // (cart + about-to-add) can never exceed real stock (matches Shopee/Tiki/Amazon).
+  const currentVariantId = variant?.id ?? product.variants[0]?.id;
+  const inCart = lines
+    .filter((l) => l.variantId && l.variantId === currentVariantId)
+    .reduce((n, l) => n + l.quantity, 0);
+  const remainingAddable = isPreorder ? 99 : Math.max(0, branchQty - inCart);
+  const max = Math.max(1, remainingAddable);
+  // In stock at the branch, but the cart already holds the entire available stock.
+  const atCartLimit = !isPreorder && selectedBranchInStock && remainingAddable === 0;
+  /** Show the remaining count whenever the item is buyable at the selected branch. */
+  const showStockCount = !isPreorder && selectedBranchInStock && branchQty > 0;
 
   const pickOption = (name: string, value: string) => {
     const next = { ...selected, [name]: value };
@@ -129,14 +146,15 @@ export function ProductPurchase({
     const quantity = Math.min(qty, max);
     addLine({
       id: variant ? `${product.id}:${variant.id}` : product.id,
+      variantId: variant?.id ?? product.variants[0]?.id,
       slug: product.slug,
       name: product.name,
       image: variant?.image ?? summary.thumbnail,
       brand: product.brand?.name ?? undefined,
       detail: variant
         ? Object.entries(variant.options)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(" · ")
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(" · ")
         : undefined,
       price: price.amount,
       compareAt: price.compareAt,
@@ -147,6 +165,7 @@ export function ProductPurchase({
       rating: summary.rating,
     });
     setAdded(true);
+    setQty(1); // reset so the next add respects the reduced remaining
     window.setTimeout(() => setAdded(false), 1600);
   };
 
@@ -220,6 +239,20 @@ export function ProductPurchase({
             <WishlistMenu product={summary} className="size-11 rounded-lg border border-border bg-background" />
           </div>
         </div>
+      ) : atCartLimit ? (
+        <div className="space-y-2.5">
+          <Button size="lg" className="h-11 w-full rounded-lg" disabled>
+            Đã có tối đa trong giỏ
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Bạn đã có toàn bộ <span className="font-medium text-foreground">{inCart}</span> sản phẩm
+            còn lại trong giỏ. Vào{" "}
+            <a href="/cart" className="font-medium text-primary hover:underline">
+              giỏ hàng
+            </a>{" "}
+            để điều chỉnh.
+          </p>
+        </div>
       ) : (
         <>
           <div className="flex items-center gap-3">
@@ -265,13 +298,16 @@ export function ProductPurchase({
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
               </svg>
-              Đã đạt tối đa — chỉ còn {stock} sản phẩm.
+              {inCart > 0
+                ? `Bạn đã có ${inCart} trong giỏ — chỉ thêm được ${remainingAddable} sản phẩm nữa.`
+                : `Đã đạt tối đa — chỉ còn ${branchQty} sản phẩm.`}
             </div>
           ) : (
             showStockCount && (
               <p className="text-xs text-muted-foreground">
-                Còn <span className="font-medium text-foreground">{stock}</span> sản phẩm
-                {qty >= max && " · đã chọn tối đa"}
+                Còn <span className="font-medium text-foreground">{branchQty}</span> sản phẩm
+                {branch ? ` tại ${branch.name}` : ""}
+                {inCart > 0 && ` · đã có ${inCart} trong giỏ`}
               </p>
             )
           )}

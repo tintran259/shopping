@@ -82,6 +82,9 @@ export async function ProductDetailPage({ product }: { product: Product }) {
   const summary = toSummary(product);
   const cat = product.categories[0];
 
+  console.log("product:", product);
+
+
   const specs = [
     ...product.attributes.map((a) => ({ label: a.label, value: attrValue(a) })),
     ...(product.specifications ?? []),

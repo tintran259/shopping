@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCartStore } from "@/store/cart.store";
+import { useCart } from "@/hooks/use-cart";
 import { BagIcon } from "./icons";
 
 export function CartButton() {
-  const count = useCartStore((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
+  const { totalQuantity, ready } = useCart();
+  const count = ready ? totalQuantity : 0;
   return (
     <Link
       href="/cart"

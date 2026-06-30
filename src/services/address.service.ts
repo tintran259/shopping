@@ -98,10 +98,11 @@ export async function deleteAddress(token: string, id: string): Promise<void> {
 }
 
 // Shared in-flight guard so concurrent hook instances merge exactly once.
-let mergePromise: Promise<void> | null = null;
+let mergePromise: Promise<boolean> | null = null;
 
-/** Push the guest's local addresses into the account once, then clear them. */
-export function mergeGuestAddresses(token: string): Promise<void> {
+/** Push the guest's local addresses into the account once, then clear them.
+ *  Resolves `true` if anything was merged (caller can refetch only then). */
+export function mergeGuestAddresses(token: string): Promise<boolean> {
   if (mergePromise) return mergePromise;
   mergePromise = doMerge(token).finally(() => {
     mergePromise = null;
@@ -109,11 +110,12 @@ export function mergeGuestAddresses(token: string): Promise<void> {
   return mergePromise;
 }
 
-async function doMerge(token: string): Promise<void> {
+async function doMerge(token: string): Promise<boolean> {
   const local = useAddressStore.getState().addresses;
-  if (!local.length) return;
+  if (!local.length) return false;
   for (const a of local) {
     await createAddress(token, a); // `id` is ignored by toBody
   }
   useAddressStore.getState().clear();
+  return true;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth.store";
 import { useAddressStore, type UserAddress } from "@/store/address.store";
@@ -14,6 +14,9 @@ import {
 } from "@/services/address.service";
 
 const QK = ["addresses"] as const;
+
+// Merge runs once per token across all hook instances (avoids repeated refetches).
+const mergedTokens = new Set<string>();
 
 export interface UseAddresses {
   addresses: UserAddress[];
@@ -69,12 +72,15 @@ export function useAddresses(): UseAddresses {
     [qc],
   );
 
-  // Merge the guest's local addresses once per login (re-runs when token changes).
-  const mergedFor = useRef<string | null>(null);
+  // Merge the guest's local addresses once per login, guarded across all instances.
   useEffect(() => {
-    if (!isAuth || !mounted || mergedFor.current === token) return;
-    mergedFor.current = token as string;
-    void mergeGuestAddresses(token as string).catch(() => { }).finally(invalidate);
+    if (!isAuth || !mounted || mergedTokens.has(token as string)) return;
+    mergedTokens.add(token as string);
+    void mergeGuestAddresses(token as string)
+      .then((merged) => {
+        if (merged) invalidate();
+      })
+      .catch(() => {});
   }, [isAuth, mounted, token, invalidate]);
 
   const add = useCallback<UseAddresses["add"]>(

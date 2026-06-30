@@ -9,29 +9,39 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProductLineRow } from "@/components/shared/product-line-row";
 import { cartLineFromSummary } from "@/features/cart/utils";
 import { useWishlist } from "@/hooks/use-wishlist";
-import { useCartStore } from "@/store/cart.store";
+import { useCart } from "@/hooks/use-cart";
 import { useBranchStore } from "@/store/branch.store";
+import { toast } from "@/store/toast.store";
+import { VariantPickerModal } from "@/components/shared/variant-picker-modal";
 import type { ProductSummary } from "@/types/product";
 
 export function WishlistDetailPage({ listId }: { listId: string }) {
   const router = useRouter();
   const { lists, ready, renameList, removeList, toggleItem } = useWishlist();
   const list = lists.find((l) => l.id === listId);
-  const addLine = useCartStore((s) => s.addLine);
+  const { addLine, lines: cartLines } = useCart();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
 
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
+  const [pickerSlug, setPickerSlug] = useState<string | null>(null);
   const [qtyMap, setQtyMap] = useState<Record<string, number>>({});
   const [addedAll, setAddedAll] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmAdd, setConfirmAdd] = useState(false);
 
   const branchId = selectedBranchId ?? undefined;
+  // `max` = how many MORE can be added = branch stock − what's already in the cart
+  // for that variant (same rule as PDP/PLP). `available` = the branch carries it.
+  const inCartOf = (item: ProductSummary) =>
+    item.defaultVariantId
+      ? cartLines.filter((l) => l.variantId === item.defaultVariantId).reduce((n, l) => n + l.quantity, 0)
+      : 0;
   const availOf = (item: ProductSummary) => {
     const entry = branchId ? item.branchStock?.find((b) => b.branchId === branchId) : undefined;
     const available = !item.branchStock || !branchId ? item.inStock : (entry?.inStock ?? false);
-    return { available, max: available ? entry?.quantity || 99 : 0 };
+    const stockCap = available ? entry?.quantity || 99 : 0;
+    return { available, max: Math.max(0, stockCap - inCartOf(item)) };
   };
   const getQty = (id: string) => qtyMap[id] ?? 1;
   const setQty = (id: string, next: number, max: number) =>
@@ -47,7 +57,9 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
   };
   const performAddAll = () => {
     if (!list) return;
-    let count = 0;
+    let added = 0;
+    let skipped = 0;
+    let variantSkipped = 0;
     for (const item of list.items) {
       const { available, max } = availOf(item);
       if (!available) {
@@ -55,14 +67,27 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         toggleItem(listId, item);
         continue;
       }
+      if (item.optionPreview) {
+        // Has a variant axis — must be chosen per item via the picker.
+        variantSkipped += 1;
+        continue;
+      }
+      if (max <= 0) {
+        // In stock but the cart already holds all available — skip (keep in list).
+        skipped += 1;
+        continue;
+      }
       addLine(cartLineFromSummary(item, Math.min(getQty(item.id), max), branchId));
-      count += 1;
+      added += 1;
     }
     setConfirmAdd(false);
-    if (count) {
+    if (added) {
       setAddedAll(true);
       window.setTimeout(() => setAddedAll(false), 1800);
     }
+    if (variantSkipped)
+      toast.info(`${variantSkipped} sản phẩm có phân loại — chọn phân loại ở từng sản phẩm`);
+    if (skipped) toast.info(`${skipped} sản phẩm đã có đủ trong giỏ`);
   };
 
   if (!ready) {
@@ -97,7 +122,11 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
   }
 
   const oosCount = list.items.filter((i) => !availOf(i).available).length;
-  const availCount = list.items.length - oosCount;
+  // "Add all" only handles simple products; variant ones are added via the picker.
+  const availCount = list.items.filter((i) => {
+    const a = availOf(i);
+    return a.available && !i.optionPreview && a.max > 0;
+  }).length;
   const anyAvailable = availCount > 0;
 
   return (
@@ -186,17 +215,49 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
                 rating={p.rating}
                 badge={p.highlight}
                 detail={detail}
-                quantity={getQty(p.id)}
-                max={max || 1}
-                onDecrease={() => setQty(p.id, getQty(p.id) - 1, max || 1)}
-                onIncrease={() => setQty(p.id, getQty(p.id) + 1, max || 1)}
+                quantity={Math.min(getQty(p.id), max)}
+                max={max}
+                onDecrease={() => setQty(p.id, getQty(p.id) - 1, max)}
+                onIncrease={() => setQty(p.id, getQty(p.id) + 1, max)}
                 onRemove={() => toggleItem(listId, p)}
                 unavailable={!available}
+                aside={
+                  available ? (
+                    p.optionPreview ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-1 self-start"
+                        onClick={() => setPickerSlug(p.slug)}
+                      >
+                        Chọn phân loại
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-1 self-start"
+                        disabled={max <= 0}
+                        onClick={() =>
+                          addLine(cartLineFromSummary(p, Math.min(getQty(p.id), max), branchId))
+                        }
+                      >
+                        Thêm vào giỏ
+                      </Button>
+                    )
+                  ) : undefined
+                }
               />
             );
           })}
         </div>
       )}
+
+      <VariantPickerModal
+        open={!!pickerSlug}
+        slug={pickerSlug}
+        onClose={() => setPickerSlug(null)}
+      />
 
       <ConfirmDialog
         open={confirmDelete}

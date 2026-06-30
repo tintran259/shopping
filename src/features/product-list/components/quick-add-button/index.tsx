@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { useCartStore } from "@/store/cart.store";
+import { useCart } from "@/hooks/use-cart";
 import { useBranchStore } from "@/store/branch.store";
 import { cartLineFromSummary } from "@/features/cart/utils";
+import { VariantPickerModal } from "@/components/shared/variant-picker-modal";
 import type { ProductSummary } from "@/types/product";
 
 /**
@@ -19,28 +20,46 @@ export function QuickAddButton({
   product: ProductSummary;
   className?: string;
 }) {
-  const addLine = useCartStore((s) => s.addLine);
+  const { addLine, lines } = useCart();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
   const [added, setAdded] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client mount gate
   useEffect(() => setMounted(true), []);
 
   const branchId = selectedBranchId ?? undefined;
+  // Products with a variant axis can't be added blindly — open a picker instead.
+  const needsPicker = !!product.optionPreview;
 
   const availableAtBranch =
     !mounted || !product.branchStock || !branchId
       ? product.inStock
       : (product.branchStock.find((b) => b.branchId === branchId)?.inStock ?? false);
 
+  // Simple products: cap by stock − what's already in the cart for the default
+  // variant. Variant products defer this to the picker (per-variant).
+  const branchQty =
+    (branchId ? product.branchStock?.find((b) => b.branchId === branchId)?.quantity : undefined) ??
+    (product.inStock ? 99 : 0);
+  const inCart = product.defaultVariantId
+    ? lines.filter((l) => l.variantId === product.defaultVariantId).reduce((n, l) => n + l.quantity, 0)
+    : 0;
+  const atLimit = !needsPicker && mounted && availableAtBranch && branchQty - inCart <= 0;
+
   const onAdd = () => {
     if (!availableAtBranch) return;
+    if (needsPicker) {
+      setPickerOpen(true);
+      return;
+    }
+    if (atLimit) return;
     addLine(cartLineFromSummary(product, 1, branchId));
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1500);
   };
 
-  if (!availableAtBranch) {
+  if (!availableAtBranch || atLimit) {
     return (
       <button
         type="button"
@@ -50,32 +69,38 @@ export function QuickAddButton({
           className,
         )}
       >
-        Hết hàng tại chi nhánh
+        {atLimit ? "Đã có tối đa trong giỏ" : "Hết hàng tại chi nhánh"}
       </button>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={onAdd}
-      className={cn(
-        "inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-foreground/90 px-4 text-xs font-semibold text-background shadow-sm backdrop-blur transition hover:bg-foreground",
-        className,
+    <>
+      <button
+        type="button"
+        onClick={onAdd}
+        className={cn(
+          "inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-foreground/90 px-4 text-xs font-semibold text-background shadow-sm backdrop-blur transition hover:bg-foreground",
+          className,
+        )}
+      >
+        {added ? (
+          "Đã thêm ✓"
+        ) : (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="9" cy="21" r="1" />
+              <circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            </svg>
+            {needsPicker ? "Chọn phân loại" : "Thêm vào giỏ"}
+          </>
+        )}
+      </button>
+
+      {needsPicker && (
+        <VariantPickerModal open={pickerOpen} slug={product.slug} onClose={() => setPickerOpen(false)} />
       )}
-    >
-      {added ? (
-        "Đã thêm ✓"
-      ) : (
-        <>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <circle cx="9" cy="21" r="1" />
-            <circle cx="20" cy="21" r="1" />
-            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-          </svg>
-          Thêm vào giỏ
-        </>
-      )}
-    </button>
+    </>
   );
 }
