@@ -144,7 +144,7 @@ export function ProductLineRow({
 
         {/* Bottom: quantity stepper + line subtotal */}
         {!unavailable && (
-          <div className="mt-auto flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <div className="inline-flex h-9 items-center rounded-lg border border-border">
               <button
                 type="button"
@@ -166,11 +166,11 @@ export function ProductLineRow({
                 +
               </button>
             </div>
-            <div className="text-right">
-              <span className="text-sm font-bold tracking-tight tabular-nums">{formatPrice(subtotal, currency)}</span>
-              {(showRemaining || max <= 20) && (
-                <span className="ml-2 text-[11px] text-muted-foreground">Còn {max}</span>
-              )}
+            <div className="flex flex-col items-end gap-1">
+              {(showRemaining || max <= 20) && <StockChip remaining={max} />}
+              <span className="text-sm font-bold tracking-tight tabular-nums">
+                {formatPrice(subtotal, currency)}
+              </span>
             </div>
           </div>
         )}
@@ -178,5 +178,32 @@ export function ProductLineRow({
         {aside}
       </div>
     </div>
+  );
+}
+
+/**
+ * Remaining-stock chip with a colour-coded status dot so availability reads at a
+ * glance: green = plenty, amber = running low (≤ 5). Renders nothing when there's
+ * nothing left to add (the "maxed in cart" note covers that case instead).
+ */
+function StockChip({ remaining }: { remaining: number }) {
+  if (remaining <= 0) return null;
+  const low = remaining <= 5;
+
+  const tone = low
+    ? "bg-(--theme-warning,#d97706)/12 text-(--theme-warning,#b45309)"
+    : "bg-(--theme-in-stock,#16a34a)/12 text-(--theme-in-stock,#15803d)";
+  const dot = low ? "bg-(--theme-warning,#d97706)" : "bg-(--theme-in-stock,#16a34a)";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        tone,
+      )}
+    >
+      <span aria-hidden className={cn("size-1.5 rounded-full", dot)} />
+      {low ? `Sắp hết · còn ${remaining}` : `Còn ${remaining}`}
+    </span>
   );
 }

@@ -164,6 +164,7 @@ export function CartPage() {
                 onIncrease={() => setQuantity(l.id, Math.min(l.quantity + 1, available))}
                 onRemove={() => removeLine(l.id)}
                 unavailable={!inStock}
+                showRemaining
                 note={exceed ? `Chỉ còn ${available} — hãy giảm số lượng` : undefined}
               />
             );

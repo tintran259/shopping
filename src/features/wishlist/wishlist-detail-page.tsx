@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProductLineRow } from "@/components/shared/product-line-row";
+import { AddAllToCartDialog } from "@/features/wishlist/components/add-all-to-cart-dialog";
 import { cartLineFromSummary } from "@/features/cart/utils";
 import { getProductBySlug } from "@/services/product.service";
 import { useWishlist } from "@/hooks/use-wishlist";
@@ -105,7 +106,7 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
     renameList(listId, name);
     setEditing(false);
   };
-  const performAddAll = () => {
+  const performAddAll = (deleteAfter: boolean) => {
     if (!list) return;
     let added = 0;
     let skipped = 0;
@@ -131,13 +132,21 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
       added += 1;
     }
     setConfirmAdd(false);
+    if (variantSkipped)
+      toast.info(`${variantSkipped} sản phẩm có phân loại — chọn phân loại ở từng sản phẩm`);
+    if (skipped) toast.info(`${skipped} sản phẩm đã có đủ trong giỏ`);
+    // User opted to delete the list after adding — only do so once something was
+    // actually added, then leave the (now-gone) detail page.
+    if (deleteAfter && added) {
+      toast.success(`Đã thêm ${added} sản phẩm vào giỏ và xóa danh sách`);
+      removeList(listId);
+      router.push("/wishlist");
+      return;
+    }
     if (added) {
       setAddedAll(true);
       window.setTimeout(() => setAddedAll(false), 1800);
     }
-    if (variantSkipped)
-      toast.info(`${variantSkipped} sản phẩm có phân loại — chọn phân loại ở từng sản phẩm`);
-    if (skipped) toast.info(`${skipped} sản phẩm đã có đủ trong giỏ`);
   };
 
   if (!ready) {
@@ -329,15 +338,10 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         onCancel={() => setConfirmDelete(false)}
       />
 
-      <ConfirmDialog
+      <AddAllToCartDialog
         open={confirmAdd}
-        title="Thêm tất cả vào giỏ"
-        description={
-          oosCount > 0
-            ? `${oosCount} sản phẩm đã hết hàng tại chi nhánh đang chọn sẽ bị xóa khỏi danh sách. Thêm ${availCount} sản phẩm còn lại vào giỏ?`
-            : `Thêm ${availCount} sản phẩm vào giỏ hàng?`
-        }
-        confirmLabel={oosCount > 0 ? "Xóa hết hàng & thêm vào giỏ" : "Thêm vào giỏ"}
+        itemCount={availCount}
+        oosCount={oosCount}
         onConfirm={performAddAll}
         onCancel={() => setConfirmAdd(false)}
       />
