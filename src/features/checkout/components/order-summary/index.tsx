@@ -125,18 +125,21 @@ export function OrderSummary({
       <Button size="lg" className="mt-4 w-full" disabled={!canPlace || submitting} onClick={onPlace}>
         {submitting ? "Đang đặt hàng…" : "Đặt hàng"}
       </Button>
-      {error ? (
-        <p className="mt-2 text-center text-xs font-medium text-(--theme-out-of-stock,var(--destructive))">
-          {error}
-        </p>
-      ) : (
-        !canPlace &&
-        invalidHint && (
-          <p className="mt-2 text-center text-xs text-(--theme-out-of-stock,var(--destructive))">
-            {invalidHint}
+      {/* While submitting (incl. the success → navigation window, where the cart
+          is cleared) don't surface validation hints — they'd flash as false errors. */}
+      {!submitting &&
+        (error ? (
+          <p className="mt-2 text-center text-xs font-medium text-(--theme-out-of-stock,var(--destructive))">
+            {error}
           </p>
-        )
-      )}
+        ) : (
+          !canPlace &&
+          invalidHint && (
+            <p className="mt-2 text-center text-xs text-(--theme-out-of-stock,var(--destructive))">
+              {invalidHint}
+            </p>
+          )
+        ))}
     </aside>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -35,6 +35,9 @@ export function CartPage() {
     queryFn: () => Promise.all(slugs.map((s) => getProductBySlug(s))),
     enabled: slugs.length > 0,
     staleTime: 30_000,
+    // Keep the last verified stock while re-verifying after add/remove changes
+    // the slug set — avoids flashing the skeleton on every cart mutation.
+    placeholderData: keepPreviousData,
   });
   const freshByVariant = useMemo(() => {
     const m = new Map<string, BranchStock[]>();
@@ -54,7 +57,11 @@ export function CartPage() {
     return { inStock, available, exceed: inStock && line.quantity > available };
   };
 
-  if (!ready) {
+  // Hold the skeleton until LIVE stock is verified too — otherwise the stale
+  // snapshot briefly drives OOS/over-limit banners before the fresh data lands.
+  const stockReady = slugs.length === 0 || stockQuery.isSuccess || stockQuery.isError;
+
+  if (!ready || !stockReady) {
     return (
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-4">

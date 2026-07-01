@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { MenuIcon, CloseIcon, ChevronDownIcon } from "./icons";
 import { SearchBar } from "./search-bar";
 import { NavLabel } from "./nav-label";
@@ -99,44 +100,58 @@ export function MobileNav({ items }: { items: NavNode[] }) {
 
       {/* Portal to <body> so `fixed` escapes the header's backdrop-filter
           containing block (otherwise the drawer is clipped to the header). */}
-      {open &&
-        createPortal(
-          <div className="fixed inset-0 z-60">
-            <button
-              type="button"
-              aria-label="Đóng menu"
-              className="absolute inset-0 bg-black/40"
-              onClick={() => setOpen(false)}
-            />
-            <div className="absolute inset-y-0 left-0 flex w-80 max-w-[85%] flex-col bg-background shadow-xl">
-              <div className="flex items-center justify-between border-b p-4">
-                <span className="font-heading text-lg font-semibold">Menu</span>
-                <button
-                  type="button"
-                  aria-label="Đóng menu"
-                  onClick={() => setOpen(false)}
-                  className="inline-flex size-9 items-center justify-center rounded-md hover:bg-muted"
-                >
-                  <CloseIcon />
-                </button>
-              </div>
-              <div className="border-b p-4">
-                <SearchBar className="w-full" />
-              </div>
-              <nav aria-label="Mobile" className="flex-1 overflow-y-auto p-2">
-                {items.map((item) => (
-                  <MobileItem
-                    key={item.id}
-                    node={item}
-                    depth={0}
-                    onNavigate={() => setOpen(false)}
-                  />
-                ))}
-              </nav>
-            </div>
-          </div>,
-          document.body,
-        )}
+      {createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              className="fixed inset-0 z-60"
+              initial="closed"
+              animate="open"
+              exit="closed"
+            >
+              <motion.button
+                type="button"
+                aria-label="Đóng menu"
+                className="absolute inset-0 bg-black/40"
+                onClick={() => setOpen(false)}
+                variants={{ open: { opacity: 1 }, closed: { opacity: 0 } }}
+                transition={{ duration: 0.2 }}
+              />
+              <motion.div
+                className="absolute inset-y-0 left-0 flex w-80 max-w-[85%] flex-col bg-background shadow-xl"
+                variants={{ open: { x: 0 }, closed: { x: "-100%" } }}
+                transition={{ type: "tween", ease: "easeOut", duration: 0.28 }}
+              >
+                <div className="flex items-center justify-between border-b p-4">
+                  <span className="font-heading text-lg font-semibold">Menu</span>
+                  <button
+                    type="button"
+                    aria-label="Đóng menu"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex size-9 items-center justify-center rounded-md hover:bg-muted"
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+                <div className="border-b p-4">
+                  <SearchBar className="w-full" />
+                </div>
+                <nav aria-label="Mobile" className="flex-1 overflow-y-auto p-2">
+                  {items.map((item) => (
+                    <MobileItem
+                      key={item.id}
+                      node={item}
+                      depth={0}
+                      onNavigate={() => setOpen(false)}
+                    />
+                  ))}
+                </nav>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </>
   );
 }
