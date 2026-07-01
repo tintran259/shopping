@@ -1,20 +1,35 @@
 import { env } from "@/config/env";
-import { useWishlistStore } from "@/store/wishlist.store";
-import type { ProductSummary } from "@/types/product";
+import { baseProductId, useWishlistStore, type WishlistItem } from "@/store/wishlist.store";
+import type { BranchStock, ProductSummary } from "@/types/product";
 
 /**
- * Wishlist BE integration (logged-in users). Lists carry their server item ids
- * (needed to remove items) plus full product summaries so pages render without
- * a refetch. Guests use the local Zustand store; on login `mergeGuestWishlist`
- * pushes the guest's lists into the account, then clears the local copy.
+ * Wishlist BE integration (logged-in users). Items can be variant-specific; the
+ * embedded `product` is already adjusted to the chosen variant (price/thumbnail).
+ * Guests use the local Zustand store; on login `mergeGuestWishlist` pushes the
+ * guest's lists into the account, then clears the local copy.
  */
 
 const API = env.apiUrl;
 
+/** BE wishlist product (a compact, variant-adjusted subset of ProductSummary). */
+interface ApiWishlistProduct {
+  id: string;
+  slug: string;
+  name: string;
+  thumbnail: { url: string; alt: string };
+  price: { amount: number; compareAt: number | null; currency: string };
+  priceVaries: boolean;
+  brand?: { id: string; slug: string; name: string } | null;
+  rating?: { average: number; count: number };
+  inStock: boolean;
+  branchStock: BranchStock[];
+  optionPreview?: ProductSummary["optionPreview"];
+}
 export interface ApiWishlistItem {
   id: string;
   variantId: string | null;
-  product: ProductSummary;
+  variantLabel: string | null;
+  product: ApiWishlistProduct;
 }
 export interface ApiWishlist {
   id: string;
@@ -22,6 +37,18 @@ export interface ApiWishlist {
   isDefault: boolean;
   createdAt: string;
   items: ApiWishlistItem[];
+}
+
+/** BE wishlist item → the store's `WishlistItem` (composite id for variants). */
+export function toWishlistItem(i: ApiWishlistItem): WishlistItem {
+  const p = i.product;
+  return {
+    ...p,
+    flags: {},
+    id: i.variantId ? `${p.id}:${i.variantId}` : p.id,
+    variantId: i.variantId ?? undefined,
+    variantLabel: i.variantLabel ?? undefined,
+  };
 }
 
 const headers = (token: string) => ({
@@ -71,11 +98,12 @@ export async function addWishlistItem(
   token: string,
   productId: string,
   wishlistId: string,
+  variantId?: string,
 ): Promise<ApiWishlist> {
   const res = await fetch(`${API}/wishlist/items`, {
     method: "POST",
     headers: headers(token),
-    body: JSON.stringify({ productId, wishlistId }),
+    body: JSON.stringify({ productId, wishlistId, variantId }),
   });
   if (!res.ok) throw new Error("Không lưu được sản phẩm");
   return res.json();
@@ -116,10 +144,14 @@ async function doMerge(token: string): Promise<boolean> {
     // Match an existing account list by name, otherwise create it.
     const target = remoteByName.get(list.name.toLowerCase()) ?? null;
     const targetId = target?.id ?? (await createWishlist(token, list.name)).id;
-    const already = new Set((target?.items ?? []).map((i) => i.product.id));
+    const already = new Set(
+      (target?.items ?? []).map((i) =>
+        i.variantId ? `${i.product.id}:${i.variantId}` : i.product.id,
+      ),
+    );
     for (const item of list.items) {
       if (already.has(item.id)) continue;
-      await addWishlistItem(token, item.id, targetId);
+      await addWishlistItem(token, baseProductId(item.id), targetId, item.variantId);
     }
   }
   useWishlistStore.getState().reset();

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { useCart } from "@/hooks/use-cart";
@@ -27,6 +28,7 @@ import { PAYMENT_METHODS } from "./constants";
 
 export function CheckoutPage({ branches }: { branches: Branch[] }) {
   const router = useRouter();
+  const qc = useQueryClient();
   const { lines, clear: clearCart } = useCart();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
   const appliedCode = useVoucherStore((s) => s.appliedCode);
@@ -128,7 +130,13 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
             ? { companyName: inv.companyName, taxCode: inv.taxCode, address: inv.address, email: inv.email }
             : undefined,
           voucherCode: appliedCode,
-          items: okLines.map((l) => ({ id: l.id, name: l.name, price: l.price, quantity: l.quantity })),
+          items: okLines.map((l) => ({
+            id: l.id,
+            variantId: l.variantId,
+            name: l.name,
+            price: l.price,
+            quantity: l.quantity,
+          })),
           subtotal,
           shippingFee,
           discount: productDiscount + shippingDiscount,
@@ -161,11 +169,15 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
       });
       clearCart();
       clearVoucher();
+      // Stock just changed (reserved) — drop cached catalog so PLP/PDP show the
+      // reduced availability immediately instead of the stale pre-order numbers.
+      void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["product"] });
       // Stay in the submitting state through navigation so the cleared cart never
       // flashes the empty-cart guard.
       router.push(`/order-success/${order.id}`);
-    } catch {
-      setPlaceError("Đặt hàng thất bại, vui lòng thử lại.");
+    } catch (e) {
+      setPlaceError(e instanceof Error ? e.message : "Đặt hàng thất bại, vui lòng thử lại.");
       setSubmitting(false);
     }
   };

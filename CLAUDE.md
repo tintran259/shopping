@@ -9,7 +9,9 @@ matching doc** — it extends this file with rules you must follow.
 
 | Area | Doc |
 | ---- | --- |
-| Product: PLP (`/c/[slug]`), PDP (`/product/[slug]`), Branch availability, Wishlist | [docs/rules/product.md](docs/rules/product.md) |
+| Product: PLP (`/c/[slug]`), PDP (`/product/[slug]`), Branch availability | [docs/rules/product.md](docs/rules/product.md) |
+| Wishlist: heart/picker popup, variant-level entries, hybrid guest↔account, pages | [docs/rules/wishlist.md](docs/rules/wishlist.md) |
+| Cart / Checkout / Order / Inventory: buy flow, reserve→commit stock, tracking, history | [docs/rules/order.md](docs/rules/order.md) |
 | CMS: Strapi integration, slots, landing pages, dynamic-zone blocks, transformers | [docs/rules/cms.md](docs/rules/cms.md) |
 | UI: component structure, styling, button height, responsiveness | [docs/rules/ui.md](docs/rules/ui.md) |
 

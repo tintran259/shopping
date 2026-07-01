@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { discountPercent, formatPrice, isOnSale } from "@/lib/pricing";
 import { useCart } from "@/hooks/use-cart";
 import { useBranchStore } from "@/store/branch.store";
 import { resolveDefaultBranch } from "@/services/branch.service";
+import { getProductBySlug } from "@/services/product.service";
 import type { Branch } from "@/types/branch";
 import type { Product, ProductSummary } from "@/types/product";
 import { WishlistMenu } from "@/features/product-list/components/wishlist-menu";
@@ -56,24 +58,33 @@ export function ProductPurchase({
   const branch =
     branches.find((b) => b.id === selectedBranchId) ?? resolveDefaultBranch(branches);
 
+  // Live stock: the SSR product is ISR-cached (~60s) so its stock can be stale.
+  // Refetch on mount and use the fresh copy for all availability/quantity math.
+  const { data: fresh } = useQuery({
+    queryKey: ["product", product.slug],
+    queryFn: () => getProductBySlug(product.slug),
+    staleTime: 30_000,
+  });
+  const live = fresh ?? product;
+
   const [selected, setSelected] = useState<Record<string, string>>(() => defaultSelection(product));
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [limitHit, setLimitHit] = useState(false);
 
-  const hasVariants = product.variants.length > 0;
+  const hasVariants = live.variants.length > 0;
 
   const variant = useMemo(() => {
     if (!hasVariants) return undefined;
-    return product.variants.find((v) =>
+    return live.variants.find((v) =>
       Object.entries(v.options).every(([k, val]) => selected[k] === val),
     );
-  }, [hasVariants, product.variants, selected]);
+  }, [hasVariants, live.variants, selected]);
 
   // A value is available if some in-stock variant has it + matches the other picks.
   const isAvailable = (optionName: string, value: string) => {
     if (!hasVariants) return true;
-    return product.variants.some(
+    return live.variants.some(
       (v) =>
         v.stock > 0 &&
         v.options[optionName] === value &&
@@ -81,34 +92,35 @@ export function ProductPurchase({
     );
   };
 
-  const price = variant?.price ?? product.price;
+  const price = variant?.price ?? live.price;
   const sale = isOnSale(price);
-  const stock = hasVariants ? (variant?.stock ?? 0) : product.inStock ? 99 : 0;
+  const stock = hasVariants ? (variant?.stock ?? 0) : live.inStock ? 99 : 0;
   const inStock = stock > 0;
 
-  // Per-branch availability for this product.
-  const branchStock = product.branchStock ?? [];
+  // Per-branch availability for the SELECTED VARIANT (product-level only as a
+  // fallback for simple products). Using the variant's branch stock everywhere
+  // keeps "hết hàng" vs "đã có tối đa trong giỏ" consistent — a variant that's out
+  // at this branch reads as out-of-stock, not as a maxed cart.
+  const branchStock = variant?.branchStock ?? live.branchStock ?? [];
   const allBranchesOut = branchStock.length > 0 && branchStock.every((b) => !b.inStock);
-  const selectedBranchInStock = branch
-    ? (branchStock.find((b) => b.branchId === branch.id)?.inStock ?? false)
-    : false;
+  const branchEntry = branch
+    ? branchStock.find((b) => b.branchId === branch.id)
+    : undefined;
+  const selectedBranchInStock = branchEntry?.inStock ?? false;
   const otherInStockBranches = branches.filter(
     (b) => b.id !== branch?.id && branchStock.some((s) => s.branchId === b.id && s.inStock),
   );
 
-  const isPreorder = product.status === "preorder" && !hasVariants;
-  // Purchasable only if the SELECTED branch carries it AND the chosen variant has stock.
+  const isPreorder = live.status === "preorder" && !hasVariants;
+  // Purchasable only if the SELECTED branch carries the chosen variant.
   const outOfStock = !isPreorder && (!inStock || !selectedBranchInStock);
-  // Remaining for THIS variant at the SELECTED branch (falls back to total stock when
-  // per-branch data is absent). Drives the qty cap + the "còn N" line.
-  const branchEntry = branch
-    ? variant?.branchStock?.find((b) => b.branchId === branch.id)
-    : undefined;
+  // Remaining for THIS variant at the SELECTED branch (falls back to total stock
+  // when per-branch data is absent). Drives the qty cap + the "còn N" line.
   const branchQty = branchEntry ? (branchEntry.quantity ?? 0) : stock;
 
   // Quantity of THIS variant already in the cart — the cap is stock minus that, so
   // (cart + about-to-add) can never exceed real stock (matches Shopee/Tiki/Amazon).
-  const currentVariantId = variant?.id ?? product.variants[0]?.id;
+  const currentVariantId = variant?.id ?? live.variants[0]?.id;
   const inCart = lines
     .filter((l) => l.variantId && l.variantId === currentVariantId)
     .reduce((n, l) => n + l.quantity, 0);
@@ -123,9 +135,9 @@ export function ProductPurchase({
     const next = { ...selected, [name]: value };
     // Stock of the variant we're switching TO — clamp qty so it never exceeds it.
     const nextVariant = hasVariants
-      ? product.variants.find((v) => Object.entries(v.options).every(([k, val]) => next[k] === val))
+      ? live.variants.find((v) => Object.entries(v.options).every(([k, val]) => next[k] === val))
       : undefined;
-    const nextStock = hasVariants ? (nextVariant?.stock ?? 0) : product.inStock ? 99 : 0;
+    const nextStock = hasVariants ? (nextVariant?.stock ?? 0) : live.inStock ? 99 : 0;
     setSelected(next);
     setQty((q) => Math.min(Math.max(1, q), Math.max(1, nextStock)));
     setLimitHit(false);
@@ -146,7 +158,7 @@ export function ProductPurchase({
     const quantity = Math.min(qty, max);
     addLine({
       id: variant ? `${product.id}:${variant.id}` : product.id,
-      variantId: variant?.id ?? product.variants[0]?.id,
+      variantId: variant?.id ?? live.variants[0]?.id,
       slug: product.slug,
       name: product.name,
       image: variant?.image ?? summary.thumbnail,

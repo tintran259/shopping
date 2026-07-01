@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth.store";
-import { useWishlistStore, type WishlistList } from "@/store/wishlist.store";
-import type { ProductSummary } from "@/types/product";
+import {
+  baseProductId,
+  useWishlistStore,
+  type WishlistItem,
+  type WishlistList,
+} from "@/store/wishlist.store";
 import {
   addWishlistItem,
   createWishlist,
@@ -13,6 +17,7 @@ import {
   mergeGuestWishlist,
   removeWishlistItem,
   renameWishlist,
+  toWishlistItem,
   type ApiWishlist,
 } from "@/services/wishlist.service";
 
@@ -31,15 +36,19 @@ export interface UseWishlist {
   createList: (name: string) => Promise<string>;
   renameList: (id: string, name: string) => void;
   removeList: (id: string) => void;
-  toggleItem: (listId: string, item: ProductSummary) => void;
+  toggleItem: (listId: string, item: WishlistItem) => void;
 }
 
 const toUiList = (l: ApiWishlist): WishlistList => ({
   id: l.id,
   name: l.name,
   createdAt: Date.parse(l.createdAt) || 0,
-  items: l.items.map((i) => i.product),
+  items: l.items.map(toWishlistItem),
 });
+
+/** Composite key for a BE wishlist item (matches the store's WishlistItem id). */
+const apiItemKey = (i: ApiWishlist["items"][number]): string =>
+  i.variantId ? `${i.product.id}:${i.variantId}` : i.product.id;
 
 /**
  * One wishlist API for the whole app. Guests read/write the persisted Zustand
@@ -67,12 +76,12 @@ export function useWishlist(): UseWishlist {
   });
   const apiLists = useMemo(() => query.data ?? [], [query.data]);
 
-  // listId → (productId → itemId) for removals.
+  // listId → (composite item key → server itemId) for removals.
   const itemIdMap = useMemo(() => {
     const m = new Map<string, Map<string, string>>();
     for (const l of apiLists) {
       const inner = new Map<string, string>();
-      for (const it of l.items) inner.set(it.product.id, it.id);
+      for (const it of l.items) inner.set(apiItemKey(it), it.id);
       m.set(l.id, inner);
     }
     return m;
@@ -134,17 +143,43 @@ export function useWishlist(): UseWishlist {
     (listId, item) => {
       if (!isAuth) return useWishlistStore.getState().toggleItem(listId, item);
       const itemId = itemIdMap.get(listId)?.get(item.id);
+      const productId = baseProductId(item.id);
       patch((lists) =>
         lists.map((l) => {
           if (l.id !== listId) return l;
-          return itemId
-            ? { ...l, items: l.items.filter((i) => i.id !== itemId) }
-            : { ...l, items: [...l.items, { id: `temp-${item.id}`, variantId: null, product: item }] };
+          if (itemId) {
+            return { ...l, items: l.items.filter((i) => i.id !== itemId) };
+          }
+          const optimistic: ApiWishlist["items"][number] = {
+            id: `temp-${item.id}`,
+            variantId: item.variantId ?? null,
+            variantLabel: item.variantLabel ?? null,
+            product: {
+              id: productId,
+              slug: item.slug,
+              name: item.name,
+              thumbnail: item.thumbnail,
+              price: {
+                amount: item.price.amount,
+                compareAt: item.price.compareAt ?? null,
+                currency: item.price.currency,
+              },
+              priceVaries: item.priceVaries ?? false,
+              brand: item.brand ?? null,
+              rating: item.rating,
+              inStock: item.inStock,
+              branchStock: item.branchStock ?? [],
+              optionPreview: item.optionPreview,
+            },
+          };
+          return { ...l, items: [...l.items, optimistic] };
         }),
       );
       const req = itemId
         ? removeWishlistItem(token as string, itemId)
-        : addWishlistItem(token as string, item.id, listId).then(() => undefined);
+        : addWishlistItem(token as string, productId, listId, item.variantId).then(
+            () => undefined,
+          );
       void req.catch(() => {}).finally(invalidate);
     },
     [isAuth, token, itemIdMap, patch, invalidate],

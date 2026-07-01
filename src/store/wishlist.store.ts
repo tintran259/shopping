@@ -2,12 +2,25 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { ProductSummary } from "@/types/product";
 
+/**
+ * A saved wishlist entry. Variant-specific entries carry `variantId` +
+ * `variantLabel` and a composite `id` (`productId:variantId`); simple products
+ * keep `id = productId`. The price/thumbnail are already the chosen variant's.
+ */
+export interface WishlistItem extends ProductSummary {
+  variantId?: string;
+  variantLabel?: string;
+}
+
 export interface WishlistList {
   id: string;
   name: string;
-  items: ProductSummary[];
+  items: WishlistItem[];
   createdAt: number;
 }
+
+/** Base product id for a (possibly variant-composite) wishlist item id. */
+export const baseProductId = (itemId: string): string => itemId.split(":")[0];
 
 interface WishlistState {
   lists: WishlistList[];
@@ -16,8 +29,8 @@ interface WishlistState {
   renameList: (id: string, name: string) => void;
   removeList: (id: string) => void;
   clearList: (id: string) => void;
-  /** Add/remove a product within a specific list. */
-  toggleItem: (listId: string, item: ProductSummary) => void;
+  /** Add/remove an item within a specific list (keyed by the item's composite id). */
+  toggleItem: (listId: string, item: WishlistItem) => void;
   /** Wipe everything back to a single empty default list (used on logout). */
   reset: () => void;
 }

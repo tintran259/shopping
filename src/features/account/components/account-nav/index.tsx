@@ -37,7 +37,7 @@ export function AccountNav({ onLogout, chevron = false }: { onLogout: () => void
   const pathname = usePathname();
   const items: Item[] = [
     { key: "profile", label: "Hồ sơ", href: "/account/profile", icon: <Icon>{I.user}</Icon> },
-    { key: "orders", label: "Đơn hàng", icon: <Icon>{I.box}</Icon>, soon: true },
+    { key: "orders", label: "Đơn hàng", href: "/account/orders", icon: <Icon>{I.box}</Icon> },
     { key: "address", label: "Địa chỉ", href: "/account/addresses", icon: <Icon>{I.pin}</Icon> },
   ];
 

@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useWishlist } from "@/hooks/use-wishlist";
+import { baseProductId } from "@/store/wishlist.store";
+import { WishlistPickerModal } from "@/components/shared/wishlist-picker-modal";
 import type { ProductSummary } from "@/types/product";
 
 const PANEL_W = 288;
@@ -22,9 +24,13 @@ export function WishlistMenu({
   className?: string;
 }) {
   const { lists, toggleItem, createList } = useWishlist();
-  const inAny = lists.some((l) => l.items.some((i) => i.id === product.id));
+  // Filled when ANY variant of this product is saved (base product id match).
+  const inAny = lists.some((l) => l.items.some((i) => baseProductId(i.id) === product.id));
+  // Products with a variant axis need a variant chosen first → use the modal.
+  const hasOptions = !!product.optionPreview;
 
   const [open, setOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [name, setName] = useState("");
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -45,6 +51,10 @@ export function WishlistMenu({
 
   const toggleOpen = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (hasOptions) {
+      setPickerOpen(true); // variant products: choose a variant in the modal first
+      return;
+    }
     if (open) return setOpen(false);
     const rect = btnRef.current?.getBoundingClientRect();
     if (rect) {
@@ -182,6 +192,14 @@ export function WishlistMenu({
           </>,
           document.body,
         )}
+
+      {hasOptions && (
+        <WishlistPickerModal
+          open={pickerOpen}
+          slug={product.slug}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </>
   );
 }

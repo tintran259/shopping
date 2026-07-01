@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useOrderStore } from "@/store/order.store";
+import { trackOrder } from "@/services/order.service";
 import type { OrderRecord } from "@/store/order.store";
 import { OrderDetail } from "./components/order-detail";
 
@@ -10,18 +10,20 @@ const inputCls =
   "h-11 w-full rounded-lg border border-border bg-background px-3 text-sm focus:border-primary focus:outline-none";
 
 export function TrackOrderPage() {
-  const find = useOrderStore((s) => s.find);
-
   const [code, setCode] = useState("");
   const [phone, setPhone] = useState("");
   const [result, setResult] = useState<OrderRecord | null>(null);
   const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!code.trim() || !phone.trim()) return;
-    setResult(find(code, phone) ?? null);
+    if (!code.trim() || !phone.trim() || loading) return;
+    setLoading(true);
+    const found = await trackOrder(code, phone);
+    setResult(found);
     setSearched(true);
+    setLoading(false);
   };
 
   return (
@@ -40,8 +42,8 @@ export function TrackOrderPage() {
           <label className="mb-1 block text-xs font-medium text-muted-foreground">Số điện thoại</label>
           <input value={phone} inputMode="tel" onChange={(e) => setPhone(e.target.value)} placeholder="09xx xxx xxx" className={inputCls} />
         </div>
-        <Button type="submit" size="lg" disabled={!code.trim() || !phone.trim()}>
-          Tra cứu
+        <Button type="submit" size="lg" disabled={!code.trim() || !phone.trim() || loading}>
+          {loading ? "Đang tìm…" : "Tra cứu"}
         </Button>
       </form>
 

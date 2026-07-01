@@ -1,19 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProductLineRow } from "@/components/shared/product-line-row";
 import { cartLineFromSummary } from "@/features/cart/utils";
+import { getProductBySlug } from "@/services/product.service";
 import { useWishlist } from "@/hooks/use-wishlist";
 import { useCart } from "@/hooks/use-cart";
 import { useBranchStore } from "@/store/branch.store";
 import { toast } from "@/store/toast.store";
-import { VariantPickerModal } from "@/components/shared/variant-picker-modal";
-import type { ProductSummary } from "@/types/product";
+import type { WishlistItem } from "@/store/wishlist.store";
+import type { CartLine } from "@/store/cart.store";
+import type { BranchStock } from "@/types/product";
 
 export function WishlistDetailPage({ listId }: { listId: string }) {
   const router = useRouter();
@@ -24,28 +27,72 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
 
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
-  const [pickerSlug, setPickerSlug] = useState<string | null>(null);
   const [qtyMap, setQtyMap] = useState<Record<string, number>>({});
   const [addedAll, setAddedAll] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmAdd, setConfirmAdd] = useState(false);
 
   const branchId = selectedBranchId ?? undefined;
-  // `max` = how many MORE can be added = branch stock − what's already in the cart
-  // for that variant (same rule as PDP/PLP). `available` = the branch carries it.
-  const inCartOf = (item: ProductSummary) =>
-    item.defaultVariantId
-      ? cartLines.filter((l) => l.variantId === item.defaultVariantId).reduce((n, l) => n + l.quantity, 0)
+  // The variant to buy: the one saved with the item, else the product's default.
+  const variantOf = (item: WishlistItem) => item.variantId ?? item.defaultVariantId;
+  // A variant item can be added straight to cart; a variant-product saved without
+  // a variant (legacy) still needs the picker.
+  const needsVariantChoice = (item: WishlistItem) => !!item.optionPreview && !item.variantId;
+
+  // Verify against LIVE stock: the saved branchStock is a snapshot (stale for
+  // guests). Refetch the listed products and read each variant's fresh stock so we
+  // don't let the user add more than is actually available.
+  const slugs = useMemo(
+    () => [...new Set((list?.items ?? []).map((i) => i.slug))],
+    [list],
+  );
+  const stockQuery = useQuery({
+    queryKey: ["wishlist-stock", listId, slugs.join(",")],
+    queryFn: () => Promise.all(slugs.map((s) => getProductBySlug(s))),
+    enabled: slugs.length > 0,
+    staleTime: 30_000,
+  });
+  const freshStockByVariant = useMemo(() => {
+    const m = new Map<string, BranchStock[]>();
+    for (const p of stockQuery.data ?? []) {
+      if (!p) continue;
+      for (const v of p.variants) if (v.branchStock) m.set(v.id, v.branchStock);
+    }
+    return m;
+  }, [stockQuery.data]);
+
+  // `max` = how many MORE can be added = branch stock − what's already in the cart.
+  const inCartOf = (item: WishlistItem) => {
+    const vId = variantOf(item);
+    return vId
+      ? cartLines.filter((l) => l.variantId === vId).reduce((n, l) => n + l.quantity, 0)
       : 0;
-  const availOf = (item: ProductSummary) => {
-    const entry = branchId ? item.branchStock?.find((b) => b.branchId === branchId) : undefined;
-    const available = !item.branchStock || !branchId ? item.inStock : (entry?.inStock ?? false);
+  };
+  const availOf = (item: WishlistItem) => {
+    const vId = variantOf(item);
+    // Live stock when loaded, else fall back to the saved snapshot.
+    const branchStock = (vId && freshStockByVariant.get(vId)) || item.branchStock;
+    const entry = branchId ? branchStock?.find((b) => b.branchId === branchId) : undefined;
+    const available = !branchStock || !branchId ? item.inStock : (entry?.inStock ?? false);
     const stockCap = available ? entry?.quantity || 99 : 0;
     return { available, max: Math.max(0, stockCap - inCartOf(item)) };
+  };
+  // Build a cart line for a wishlist item, pinning the saved variant.
+  const toCartLine = (item: WishlistItem, qty: number): CartLine => {
+    const line = cartLineFromSummary(item, qty, branchId);
+    if (item.variantId) line.variantId = item.variantId;
+    return line;
   };
   const getQty = (id: string) => qtyMap[id] ?? 1;
   const setQty = (id: string, next: number, max: number) =>
     setQtyMap((m) => ({ ...m, [id]: Math.min(Math.max(1, next), max) }));
+
+  /** Remove every item that's out of stock at the selected branch. */
+  const removeOos = () => {
+    for (const item of list?.items ?? []) {
+      if (!availOf(item).available) toggleItem(listId, item);
+    }
+  };
 
   const onDelete = () => {
     removeList(listId);
@@ -67,8 +114,8 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         toggleItem(listId, item);
         continue;
       }
-      if (item.optionPreview) {
-        // Has a variant axis — must be chosen per item via the picker.
+      if (needsVariantChoice(item)) {
+        // Variant product saved without a variant — must be chosen via the picker.
         variantSkipped += 1;
         continue;
       }
@@ -77,7 +124,7 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         skipped += 1;
         continue;
       }
-      addLine(cartLineFromSummary(item, Math.min(getQty(item.id), max), branchId));
+      addLine(toCartLine(item, Math.min(getQty(item.id), max)));
       added += 1;
     }
     setConfirmAdd(false);
@@ -122,10 +169,10 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
   }
 
   const oosCount = list.items.filter((i) => !availOf(i).available).length;
-  // "Add all" only handles simple products; variant ones are added via the picker.
+  // Addable = in stock, still room in cart, and not a legacy variant-less entry.
   const availCount = list.items.filter((i) => {
     const a = availOf(i);
-    return a.available && !i.optionPreview && a.max > 0;
+    return a.available && !needsVariantChoice(i) && a.max > 0;
   }).length;
   const anyAvailable = availCount > 0;
 
@@ -162,7 +209,11 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
 
         <div className="flex flex-wrap items-center gap-2">
           {list.items.length > 0 && (
-            <Button size="sm" disabled={!anyAvailable} onClick={() => setConfirmAdd(true)}>
+            <Button
+              size="sm"
+              disabled={!anyAvailable || oosCount > 0}
+              onClick={() => setConfirmAdd(true)}
+            >
               {addedAll ? "Đã thêm vào giỏ ✓" : "Thêm tất cả vào giỏ"}
             </Button>
           )}
@@ -184,6 +235,18 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         </div>
       </header>
 
+      {oosCount > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-(--theme-out-of-stock,var(--destructive))/30 bg-(--theme-out-of-stock,var(--destructive))/5 px-4 py-3">
+          <p className="text-sm text-(--theme-out-of-stock,var(--destructive))">
+            <span className="font-semibold">{oosCount} sản phẩm</span> đã hết hàng tại chi nhánh
+            đang chọn — xóa để thêm tất cả vào giỏ.
+          </p>
+          <Button variant="destructive" size="sm" onClick={removeOos}>
+            Xóa sản phẩm hết hàng
+          </Button>
+        </div>
+      )}
+
       {list.items.length === 0 ? (
         <div className="flex min-h-[35vh] flex-col items-center justify-center gap-2 text-center">
           <p className="text-base font-medium">Danh sách trống</p>
@@ -198,9 +261,11 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         <div className="divide-y divide-border/60 rounded-2xl border border-border/60 px-4">
           {list.items.map((p) => {
             const { available, max } = availOf(p);
-            const detail = p.optionPreview
-              ? `${p.optionPreview.name}: ${p.optionPreview.values.slice(0, 4).join(" · ")}`
-              : undefined;
+            const detail =
+              p.variantLabel ??
+              (p.optionPreview
+                ? `${p.optionPreview.name}: ${p.optionPreview.values.slice(0, 4).join(" · ")}`
+                : undefined);
             return (
               <ProductLineRow
                 key={p.id}
@@ -221,43 +286,11 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
                 onIncrease={() => setQty(p.id, getQty(p.id) + 1, max)}
                 onRemove={() => toggleItem(listId, p)}
                 unavailable={!available}
-                aside={
-                  available ? (
-                    p.optionPreview ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-1 self-start"
-                        onClick={() => setPickerSlug(p.slug)}
-                      >
-                        Chọn phân loại
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-1 self-start"
-                        disabled={max <= 0}
-                        onClick={() =>
-                          addLine(cartLineFromSummary(p, Math.min(getQty(p.id), max), branchId))
-                        }
-                      >
-                        Thêm vào giỏ
-                      </Button>
-                    )
-                  ) : undefined
-                }
               />
             );
           })}
         </div>
       )}
-
-      <VariantPickerModal
-        open={!!pickerSlug}
-        slug={pickerSlug}
-        onClose={() => setPickerSlug(null)}
-      />
 
       <ConfirmDialog
         open={confirmDelete}
