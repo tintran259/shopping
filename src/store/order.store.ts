@@ -4,6 +4,8 @@ import { persist } from "zustand/middleware";
 export interface OrderRecordItem {
   id: string;
   name: string;
+  /** Variant label, e.g. "500g" or "Đen · M". */
+  detail?: string;
   price: number;
   quantity: number;
   image?: { url?: string; alt?: string };
@@ -11,6 +13,10 @@ export interface OrderRecordItem {
 
 export interface OrderRecord {
   id: string;
+  /** BE order UUID (needed to cancel). Absent for device-local guest records. */
+  uuid?: string;
+  /** BE says this order may still be cancelled by the customer. */
+  cancellable?: boolean;
   createdAt: string;
   status: string;
   recipientName: string;

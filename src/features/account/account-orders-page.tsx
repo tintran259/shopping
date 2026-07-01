@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { formatPrice } from "@/lib/pricing";
+import { toast } from "@/store/toast.store";
 import { useAuthStore } from "@/store/auth.store";
-import { fetchMyOrders } from "@/services/order.service";
+import { cancelOrder, fetchMyOrders } from "@/services/order.service";
 import { OrderDetail } from "@/features/orders/components/order-detail";
 import { AccountShell } from "./components/account-shell";
 
@@ -16,7 +18,10 @@ const DONE = new Set(["Đã giao", "Đã hủy"]);
 
 export function AccountOrdersPage() {
   const token = useAuthStore((s) => s.token);
+  const qc = useQueryClient();
   const [expanded, setExpanded] = useState<string | null>(null);
+  // The order (uuid) pending cancel confirmation.
+  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["my-orders"],
@@ -25,6 +30,19 @@ export function AccountOrdersPage() {
     staleTime: 30_000,
   });
   const orders = data?.orders ?? [];
+
+  const cancelMut = useMutation({
+    mutationFn: (uuid: string) => cancelOrder(token as string, uuid),
+    onSuccess: () => {
+      toast.success("Đã hủy đơn hàng");
+      setConfirmCancel(null);
+      // Stock was returned + status changed — refresh history and catalog.
+      void qc.invalidateQueries({ queryKey: ["my-orders"] });
+      void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["product"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Hủy đơn thất bại"),
+  });
 
   return (
     <AccountShell>
@@ -89,7 +107,11 @@ export function AccountOrdersPage() {
 
                 {open && (
                   <div className="border-t border-border/60 p-4">
-                    <OrderDetail order={o} />
+                    <OrderDetail
+                      order={o}
+                      onCancel={o.uuid ? () => setConfirmCancel(o.uuid!) : undefined}
+                      cancelling={cancelMut.isPending && confirmCancel === o.uuid}
+                    />
                   </div>
                 )}
               </li>
@@ -97,6 +119,17 @@ export function AccountOrdersPage() {
           })}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={confirmCancel !== null}
+        title="Hủy đơn hàng"
+        description="Bạn có chắc muốn hủy đơn hàng này? Hành động không thể hoàn tác."
+        confirmLabel={cancelMut.isPending ? "Đang hủy…" : "Hủy đơn"}
+        cancelLabel="Không"
+        danger
+        onConfirm={() => confirmCancel && cancelMut.mutate(confirmCancel)}
+        onCancel={() => !cancelMut.isPending && setConfirmCancel(null)}
+      />
     </AccountShell>
   );
 }

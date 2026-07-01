@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/pricing";
 import type { OrderRecord } from "@/store/order.store";
 
@@ -13,7 +14,16 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   );
 }
 
-export function OrderDetail({ order }: { order: OrderRecord }) {
+export function OrderDetail({
+  order,
+  onCancel,
+  cancelling = false,
+}: {
+  order: OrderRecord;
+  /** When provided (and the order is cancellable), shows a "Hủy đơn hàng" action. */
+  onCancel?: () => void;
+  cancelling?: boolean;
+}) {
   const c = order.currency;
   const date = new Date(order.createdAt).toLocaleString("vi-VN");
 
@@ -54,7 +64,15 @@ export function OrderDetail({ order }: { order: OrderRecord }) {
                   {it.quantity}
                 </span>
               </div>
-              <p className="line-clamp-2 min-w-0 flex-1 text-xs font-medium leading-snug">{it.name}</p>
+              <div className="min-w-0 flex-1">
+                <p className="line-clamp-2 text-xs font-medium leading-snug">{it.name}</p>
+                {it.detail && (
+                  <p className="truncate text-[11px] text-muted-foreground">{it.detail}</p>
+                )}
+                <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
+                  {formatPrice(it.price, c)} × <span className="font-medium text-foreground">{it.quantity}</span>
+                </p>
+              </div>
               <span className="shrink-0 text-xs font-semibold tabular-nums">
                 {formatPrice(it.price * it.quantity, c)}
               </span>
@@ -71,6 +89,17 @@ export function OrderDetail({ order }: { order: OrderRecord }) {
           </div>
         </dl>
       </section>
+
+      {onCancel && order.cancellable && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-(--theme-out-of-stock,var(--destructive))/30 bg-(--theme-out-of-stock,var(--destructive))/5 p-4">
+          <p className="text-sm text-muted-foreground">
+            Đơn chưa được giao — bạn có thể hủy nếu đổi ý.
+          </p>
+          <Button variant="destructive" size="sm" onClick={onCancel} disabled={cancelling}>
+            {cancelling ? "Đang hủy…" : "Hủy đơn hàng"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

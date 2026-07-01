@@ -134,12 +134,18 @@ export async function placeOrder(input: PlaceOrderInput, code: string = newOrder
   return { id: order.code, createdAt: order.placedAt ?? order.createdAt ?? new Date().toISOString() };
 }
 
+// Statuses the customer may still cancel from (mirrors the BE guard).
+const CANCELLABLE_STATUS = new Set(["pending", "confirmed"]);
+
 interface ApiOrderItem {
   productName: string;
+  variantTitle?: string;
   unitPrice: string;
   quantity: number;
+  imageUrl?: string;
 }
 interface ApiOrder {
+  id: string;
   code: string;
   status: string;
   paymentMethodCode?: string;
@@ -166,6 +172,8 @@ function toOrderRecord(o: ApiOrder): OrderRecord {
     : undefined;
   return {
     id: o.code,
+    uuid: o.id,
+    cancellable: CANCELLABLE_STATUS.has(o.status),
     createdAt: o.placedAt ?? o.createdAt ?? new Date().toISOString(),
     status: STATUS_LABEL[o.status] ?? o.status,
     recipientName: o.recipientName,
@@ -175,11 +183,13 @@ function toOrderRecord(o: ApiOrder): OrderRecord {
     paymentMethodId: o.paymentMethodCode ?? "",
     paymentLabel: PAYMENT_LABEL[o.paymentMethodCode ?? ""] ?? "—",
     address: o.fulfillment === "delivery" ? addr : undefined,
-    items: o.items.map((it) => ({
-      id: it.productName,
+    items: o.items.map((it, idx) => ({
+      id: `${it.productName}-${idx}`,
       name: it.productName,
+      detail: it.variantTitle || undefined,
       price: Number(it.unitPrice),
       quantity: it.quantity,
+      image: it.imageUrl ? { url: it.imageUrl, alt: it.productName } : undefined,
     })),
     subtotal: Number(o.subtotal),
     shippingFee: Number(o.shippingFee),
@@ -204,6 +214,27 @@ export async function fetchMyOrders(
     page: body.meta?.page ?? page,
     pageCount: body.meta?.pageCount ?? 1,
   };
+}
+
+/** Cancel one of my orders (Bearer). Returns the updated record. Throws the BE
+ *  message (e.g. "Đơn hàng đang được xử lý…") when it can't be cancelled. */
+export async function cancelOrder(token: string, orderUuid: string): Promise<OrderRecord> {
+  const res = await fetch(`${API}/orders/${orderUuid}/cancel`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    let message = "Hủy đơn thất bại, vui lòng thử lại.";
+    try {
+      const err = await res.json();
+      const raw = Array.isArray(err?.message) ? err.message[0] : err?.message;
+      if (raw) message = String(raw);
+    } catch {
+      // keep default
+    }
+    throw new Error(message);
+  }
+  return toOrderRecord(await res.json());
 }
 
 /** Guest order tracking by code + phone (public). Returns null if not found. */

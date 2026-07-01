@@ -81,6 +81,9 @@ export function OrderSummary({
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-xs font-medium leading-snug">{l.name}</p>
               {l.detail && <p className="truncate text-[11px] text-muted-foreground">{l.detail}</p>}
+              <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
+                {formatPrice(l.price, currency)} × <span className="font-medium text-foreground">{l.quantity}</span>
+              </p>
             </div>
             <span className="shrink-0 text-xs font-semibold tabular-nums">
               {formatPrice(l.price * l.quantity, currency)}

@@ -50,44 +50,50 @@ export async function fetchCart(token: string): Promise<CartLine[]> {
   return cart.lines;
 }
 
+// Every mutation returns the recomputed cart, so callers can update their cache
+// straight from the response — no follow-up GET needed.
 export async function addCartItem(
   token: string,
   variantId: string,
   quantity: number,
   branchId?: string,
-): Promise<void> {
+): Promise<CartLine[]> {
   const res = await fetch(`${API}/cart/items`, {
     method: "POST",
     headers: headers(token),
     body: JSON.stringify({ variantId, quantity, branchId }),
   });
   if (!res.ok) throw new Error(await readError(res, "Không thêm được vào giỏ"));
+  return ((await res.json()) as ApiCart).lines;
 }
 
 export async function updateCartItem(
   token: string,
   itemId: string,
   quantity: number,
-): Promise<void> {
+): Promise<CartLine[]> {
   const res = await fetch(`${API}/cart/items/${itemId}`, {
     method: "PATCH",
     headers: headers(token),
     body: JSON.stringify({ quantity }),
   });
   if (!res.ok) throw new Error(await readError(res, "Không cập nhật được giỏ"));
+  return ((await res.json()) as ApiCart).lines;
 }
 
-export async function removeCartItem(token: string, itemId: string): Promise<void> {
+export async function removeCartItem(token: string, itemId: string): Promise<CartLine[]> {
   const res = await fetch(`${API}/cart/items/${itemId}`, {
     method: "DELETE",
     headers: headers(token),
   });
   if (!res.ok) throw new Error("Không xóa được sản phẩm");
+  return ((await res.json()) as ApiCart).lines;
 }
 
-export async function clearCart(token: string): Promise<void> {
+export async function clearCart(token: string): Promise<CartLine[]> {
   const res = await fetch(`${API}/cart`, { method: "DELETE", headers: headers(token) });
   if (!res.ok) throw new Error("Không xóa được giỏ");
+  return ((await res.json()) as ApiCart).lines;
 }
 
 // Shared in-flight guard so concurrent hook instances merge exactly once.

@@ -160,7 +160,7 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
           : [checkout.address.street, checkout.address.ward, checkout.address.province]
               .filter(Boolean)
               .join(", "),
-        items: okLines.map((l) => ({ id: l.id, name: l.name, price: l.price, quantity: l.quantity, image: l.image })),
+        items: okLines.map((l) => ({ id: l.id, name: l.name, detail: l.detail, price: l.price, quantity: l.quantity, image: l.image })),
         subtotal,
         shippingFee,
         discount: productDiscount + shippingDiscount,

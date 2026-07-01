@@ -21,6 +21,12 @@ const QK = ["cart"] as const;
 // this hook, so a per-instance guard would fan out into many cart refetches.
 const mergedTokens = new Set<string>();
 
+// Per-line debounce for quantity writes: holding the +/- stepper updates the UI
+// optimistically on every click but sends just the final quantity to the BE
+// (one PATCH + one refetch), instead of one round-trip per click.
+const qtyTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const QTY_WRITE_DELAY = 400;
+
 export interface UseCart {
   lines: CartLine[];
   totalQuantity: number;
@@ -68,6 +74,12 @@ export function useCart(): UseCart {
       qc.setQueryData<CartLine[]>(QK, (old) => fn(old ?? [])),
     [qc],
   );
+  // Reconcile the cache with the server-truth cart returned by a mutation — this
+  // replaces the follow-up GET that a plain invalidate would trigger.
+  const setLines = useCallback(
+    (lines: CartLine[]) => qc.setQueryData<CartLine[]>(QK, lines),
+    [qc],
+  );
 
   // Replay the guest's local lines into the account cart once per login (guarded
   // across all instances → at most one merge + one refetch, not one per card).
@@ -104,32 +116,52 @@ export function useCart(): UseCart {
         return [...lines, { ...line, id: `temp-${line.variantId}`, quantity: clampQty(line.quantity, line.maxStock) }];
       });
       void addCartItem(token as string, line.variantId, line.quantity, branchId)
-        .catch((e) => toast.error(e instanceof Error ? e.message : "Không thêm được vào giỏ"))
-        .finally(invalidate);
+        .then(setLines)
+        .catch((e) => {
+          toast.error(e instanceof Error ? e.message : "Không thêm được vào giỏ");
+          invalidate(); // optimistic guess may be wrong → pull server truth
+        });
     },
-    [isAuth, token, branchId, patch, invalidate],
+    [isAuth, token, branchId, patch, setLines, invalidate],
   );
 
   const setQuantity = useCallback<UseCart["setQuantity"]>(
     (id, quantity) => {
       if (!isAuth) return useCartStore.getState().setQuantity(id, quantity);
-      patch((lines) =>
-        lines.map((l) => (l.id === id ? { ...l, quantity: clampQty(quantity, l.maxStock) } : l)),
+      const current = qc.getQueryData<CartLine[]>(QK) ?? [];
+      const clamped = clampQty(quantity, current.find((l) => l.id === id)?.maxStock ?? 99);
+      // Instant optimistic UI…
+      patch((lines) => lines.map((l) => (l.id === id ? { ...l, quantity: clamped } : l)));
+      // …but coalesce the BE write: reset the timer on every click, send once idle.
+      const prev = qtyTimers.get(id);
+      if (prev) clearTimeout(prev);
+      qtyTimers.set(
+        id,
+        setTimeout(() => {
+          qtyTimers.delete(id);
+          void updateCartItem(token as string, id, clamped)
+            .then((lines) => {
+              // Skip if the user has already queued a newer change for this line
+              // (that write's response will be the authoritative one).
+              if (!qtyTimers.has(id)) setLines(lines);
+            })
+            .catch((e) => {
+              toast.error(e instanceof Error ? e.message : "Không cập nhật được giỏ");
+              invalidate();
+            });
+        }, QTY_WRITE_DELAY),
       );
-      void updateCartItem(token as string, id, quantity)
-        .catch((e) => toast.error(e instanceof Error ? e.message : "Không cập nhật được giỏ"))
-        .finally(invalidate);
     },
-    [isAuth, token, patch, invalidate],
+    [isAuth, token, qc, patch, setLines, invalidate],
   );
 
   const removeLine = useCallback<UseCart["removeLine"]>(
     (id) => {
       if (!isAuth) return useCartStore.getState().removeLine(id);
       patch((lines) => lines.filter((l) => l.id !== id));
-      void removeCartItem(token as string, id).catch(() => { }).finally(invalidate);
+      void removeCartItem(token as string, id).then(setLines).catch(invalidate);
     },
-    [isAuth, token, patch, invalidate],
+    [isAuth, token, patch, setLines, invalidate],
   );
 
   const removeMany = useCallback<UseCart["removeMany"]>(
@@ -137,18 +169,25 @@ export function useCart(): UseCart {
       if (!isAuth) return useCartStore.getState().removeMany(ids);
       const set = new Set(ids);
       patch((lines) => lines.filter((l) => !set.has(l.id)));
-      void Promise.all(ids.map((id) => removeCartItem(token as string, id).catch(() => { }))).finally(
-        invalidate,
-      );
+      // Fire all deletes; the last successful response is the final cart state.
+      void Promise.all(
+        ids.map((id) => removeCartItem(token as string, id).catch(() => null)),
+      )
+        .then((results) => {
+          const last = results.filter((r): r is CartLine[] => r !== null).pop();
+          if (last) setLines(last);
+          else invalidate();
+        })
+        .catch(invalidate);
     },
-    [isAuth, token, patch, invalidate],
+    [isAuth, token, patch, setLines, invalidate],
   );
 
   const clear = useCallback<UseCart["clear"]>(() => {
     if (!isAuth) return useCartStore.getState().clear();
     patch(() => []);
-    void clearCart(token as string).catch(() => { }).finally(invalidate);
-  }, [isAuth, token, patch, invalidate]);
+    void clearCart(token as string).then(setLines).catch(invalidate);
+  }, [isAuth, token, patch, setLines, invalidate]);
 
   const lines = isAuth ? apiLines : localLines;
   const totalQuantity = lines.reduce((n, l) => n + l.quantity, 0);
