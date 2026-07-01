@@ -17,6 +17,12 @@
   variant.
 - Add-to-cart is capped at **branch stock − already-in-cart** (proactive), with the BE
   400 + a toast as the final guard. See product.md for the per-surface UX.
+- **Cart page verifies LIVE stock**: it refetches the listed products (`["cart-stock", …]`)
+  and reads each variant's fresh per-branch availability. Lines out at the branch show
+  "Hết hàng" (remove); lines whose qty **exceeds** live stock show "Chỉ còn N" + a "Cập nhật
+  số lượng" button that clamps them. Checkout is **blocked** until no line is OOS/over-limit
+  (`canCheckout = all lines OK`). This is the proactive layer before the BE `assertAvailability`
+  at placeOrder.
 
 ## Checkout
 

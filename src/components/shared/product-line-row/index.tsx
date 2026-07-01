@@ -32,6 +32,8 @@ export function ProductLineRow({
   onRemove,
   unavailable = false,
   unavailableLabel = "Hết hàng tại chi nhánh đang chọn",
+  note,
+  showRemaining = false,
   aside,
 }: {
   href: string;
@@ -52,6 +54,10 @@ export function ProductLineRow({
   onRemove: () => void;
   unavailable?: boolean;
   unavailableLabel?: string;
+  /** Small amber warning under the info (e.g. "Chỉ còn N"). */
+  note?: string;
+  /** Always show the "Còn N" remaining count (default: only when max ≤ 20). */
+  showRemaining?: boolean;
   aside?: ReactNode;
 }) {
   const priceObj = { amount: price, compareAt, currency };
@@ -119,6 +125,9 @@ export function ProductLineRow({
             {unavailable && (
               <p className="mt-1 text-xs text-(--theme-out-of-stock,var(--destructive))">{unavailableLabel}</p>
             )}
+            {!unavailable && note && (
+              <p className="mt-1 text-xs font-medium text-(--theme-warning,#b45309)">{note}</p>
+            )}
           </div>
 
           <button
@@ -159,7 +168,9 @@ export function ProductLineRow({
             </div>
             <div className="text-right">
               <span className="text-sm font-bold tracking-tight tabular-nums">{formatPrice(subtotal, currency)}</span>
-              {max <= 20 && <span className="ml-2 text-[11px] text-muted-foreground">Còn {max}</span>}
+              {(showRemaining || max <= 20) && (
+                <span className="ml-2 text-[11px] text-muted-foreground">Còn {max}</span>
+              )}
             </div>
           </div>
         )}

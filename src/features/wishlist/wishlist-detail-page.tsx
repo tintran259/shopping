@@ -77,10 +77,13 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
     const stockCap = available ? entry?.quantity || 99 : 0;
     return { available, max: Math.max(0, stockCap - inCartOf(item)) };
   };
-  // Build a cart line for a wishlist item, pinning the saved variant.
+  // Build a cart line for a wishlist item, pinning the saved variant (id + label).
   const toCartLine = (item: WishlistItem, qty: number): CartLine => {
     const line = cartLineFromSummary(item, qty, branchId);
-    if (item.variantId) line.variantId = item.variantId;
+    if (item.variantId) {
+      line.variantId = item.variantId;
+      line.detail = item.variantLabel ?? line.detail;
+    }
     return line;
   };
   const getQty = (id: string) => qtyMap[id] ?? 1;
@@ -174,6 +177,11 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
     const a = availOf(i);
     return a.available && !needsVariantChoice(i) && a.max > 0;
   }).length;
+  // In stock but the cart already holds all available for that item.
+  const maxedCount = list.items.filter((i) => {
+    const a = availOf(i);
+    return a.available && !needsVariantChoice(i) && a.max <= 0;
+  }).length;
   const anyAvailable = availCount > 0;
 
   return (
@@ -211,7 +219,7 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
           {list.items.length > 0 && (
             <Button
               size="sm"
-              disabled={!anyAvailable || oosCount > 0}
+              disabled={!anyAvailable || oosCount > 0 || maxedCount > 0}
               onClick={() => setConfirmAdd(true)}
             >
               {addedAll ? "Đã thêm vào giỏ ✓" : "Thêm tất cả vào giỏ"}
@@ -247,6 +255,18 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         </div>
       )}
 
+      {oosCount === 0 && maxedCount > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-(--theme-warning,#d97706)/40 bg-(--theme-warning,#d97706)/10 px-4 py-3">
+          <p className="text-sm text-(--theme-warning,#b45309)">
+            <span className="font-semibold">{maxedCount} sản phẩm</span> đã có tối đa trong giỏ —
+            điều chỉnh trong giỏ hàng trước khi thêm.
+          </p>
+          <Link href="/cart" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            Xem giỏ hàng
+          </Link>
+        </div>
+      )}
+
       {list.items.length === 0 ? (
         <div className="flex min-h-[35vh] flex-col items-center justify-center gap-2 text-center">
           <p className="text-base font-medium">Danh sách trống</p>
@@ -261,6 +281,11 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         <div className="divide-y divide-border/60 rounded-2xl border border-border/60 px-4">
           {list.items.map((p) => {
             const { available, max } = availOf(p);
+            // In stock at the branch but nothing left to add (all already in cart):
+            // show "đã có tối đa trong giỏ" (not "hết hàng"). Remaining reads "Còn 0"
+            // but the quantity stepper stays at 1 (never a confusing "0"). True branch
+            // OOS is handled by `unavailable` below.
+            const maxedInCart = available && max <= 0;
             const detail =
               p.variantLabel ??
               (p.optionPreview
@@ -280,12 +305,14 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
                 rating={p.rating}
                 badge={p.highlight}
                 detail={detail}
-                quantity={Math.min(getQty(p.id), max)}
+                quantity={Math.max(1, Math.min(getQty(p.id), max))}
                 max={max}
-                onDecrease={() => setQty(p.id, getQty(p.id) - 1, max)}
+                onDecrease={() => setQty(p.id, getQty(p.id) - 1, Math.max(1, max))}
                 onIncrease={() => setQty(p.id, getQty(p.id) + 1, max)}
                 onRemove={() => toggleItem(listId, p)}
                 unavailable={!available}
+                showRemaining
+                note={maxedInCart ? "Đã có tối đa trong giỏ" : undefined}
               />
             );
           })}

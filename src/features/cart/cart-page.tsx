@@ -1,18 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProductLineRow } from "@/components/shared/product-line-row";
 import { VoucherSection } from "@/features/cart/components/voucher";
 import { formatPrice } from "@/lib/pricing";
+import { getProductBySlug } from "@/services/product.service";
 import { useCart } from "@/hooks/use-cart";
 import { useBranchStore } from "@/store/branch.store";
 import { useVoucherStore } from "@/store/voucher.store";
 import { discountFor, findVoucher } from "@/services/voucher.service";
 import type { CartLine } from "@/store/cart.store";
+import type { BranchStock } from "@/types/product";
 
 const FREE_SHIP_THRESHOLD = 500_000;
 
@@ -24,12 +27,31 @@ export function CartPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRemoveOos, setConfirmRemoveOos] = useState(false);
 
-  const availOf = (line: CartLine) => {
-    const available =
-      !line.branchStock || !selectedBranchId
-        ? true
-        : (line.branchStock.find((b) => b.branchId === selectedBranchId)?.inStock ?? false);
-    return { available, max: line.maxStock || 1 };
+  // Verify against LIVE stock (the cart line's branchStock is a snapshot). Refetch
+  // the listed products and read each variant's fresh per-branch availability.
+  const slugs = useMemo(() => [...new Set(lines.map((l) => l.slug))], [lines]);
+  const stockQuery = useQuery({
+    queryKey: ["cart-stock", slugs.join(",")],
+    queryFn: () => Promise.all(slugs.map((s) => getProductBySlug(s))),
+    enabled: slugs.length > 0,
+    staleTime: 30_000,
+  });
+  const freshByVariant = useMemo(() => {
+    const m = new Map<string, BranchStock[]>();
+    for (const p of stockQuery.data ?? []) {
+      if (!p) continue;
+      for (const v of p.variants) if (v.branchStock) m.set(v.id, v.branchStock);
+    }
+    return m;
+  }, [stockQuery.data]);
+
+  // Per-line status: in stock at branch? how many available? does qty exceed it?
+  const stat = (line: CartLine) => {
+    const stock = (line.variantId && freshByVariant.get(line.variantId)) || line.branchStock;
+    const entry = selectedBranchId ? stock?.find((b) => b.branchId === selectedBranchId) : undefined;
+    const inStock = !stock || !selectedBranchId ? true : (entry?.inStock ?? false);
+    const available = inStock ? (entry?.quantity ?? line.maxStock ?? 99) : 0;
+    return { inStock, available, exceed: inStock && line.quantity > available };
   };
 
   if (!ready) {
@@ -66,15 +88,24 @@ export function CartPage() {
     );
   }
 
-  const oosLines = lines.filter((l) => !availOf(l).available);
-  const okLines = lines.filter((l) => availOf(l).available);
+  const oosLines = lines.filter((l) => !stat(l).inStock);
+  const exceedLines = lines.filter((l) => stat(l).exceed);
+  const okLines = lines.filter((l) => {
+    const s = stat(l);
+    return s.inStock && !s.exceed;
+  });
   const subtotal = okLines.reduce((s, l) => s + l.price * l.quantity, 0);
   const savings = okLines.reduce(
     (s, l) => s + (l.compareAt && l.compareAt > l.price ? (l.compareAt - l.price) * l.quantity : 0),
     0,
   );
   const totalItems = okLines.reduce((s, l) => s + l.quantity, 0);
-  const canCheckout = okLines.length > 0 && oosLines.length === 0;
+  const canCheckout = okLines.length === lines.length && lines.length > 0;
+
+  /** Clamp every over-limit line down to what's actually available. */
+  const fixExceeded = () => {
+    for (const l of exceedLines) setQuantity(l.id, Math.max(1, stat(l).available));
+  };
   const freeShipLeft = Math.max(0, FREE_SHIP_THRESHOLD - subtotal);
   const currency = lines[0]?.currency ?? "VND";
 
@@ -100,9 +131,21 @@ export function CartPage() {
           </div>
         )}
 
+        {exceedLines.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-(--theme-warning,#d97706)/40 bg-(--theme-warning,#d97706)/10 px-4 py-3">
+            <p className="text-sm text-(--theme-warning,#b45309)">
+              <span className="font-semibold">{exceedLines.length} sản phẩm</span> vượt quá tồn
+              kho hiện có — cập nhật số lượng để tiếp tục.
+            </p>
+            <Button size="sm" onClick={fixExceeded}>
+              Cập nhật số lượng
+            </Button>
+          </div>
+        )}
+
         <div className="divide-y divide-border/60 rounded-2xl border border-border/60 px-4">
           {lines.map((l) => {
-            const { available, max } = availOf(l);
+            const { inStock, available, exceed } = stat(l);
             return (
               <ProductLineRow
                 key={l.id}
@@ -116,11 +159,12 @@ export function CartPage() {
                 rating={l.rating}
                 detail={l.detail}
                 quantity={l.quantity}
-                max={max}
+                max={exceed ? l.quantity : available}
                 onDecrease={() => setQuantity(l.id, l.quantity - 1)}
-                onIncrease={() => setQuantity(l.id, l.quantity + 1)}
+                onIncrease={() => setQuantity(l.id, Math.min(l.quantity + 1, available))}
                 onRemove={() => removeLine(l.id)}
-                unavailable={!available}
+                unavailable={!inStock}
+                note={exceed ? `Chỉ còn ${available} — hãy giảm số lượng` : undefined}
               />
             );
           })}
@@ -208,7 +252,11 @@ export function CartPage() {
           </Link>
         ) : (
           <Button size="lg" className="mt-4 w-full" disabled>
-            {oosLines.length > 0 ? "Xóa sản phẩm hết hàng để tiếp tục" : "Tiến hành thanh toán"}
+            {oosLines.length > 0
+              ? "Xóa sản phẩm hết hàng để tiếp tục"
+              : exceedLines.length > 0
+                ? "Cập nhật số lượng để tiếp tục"
+                : "Tiến hành thanh toán"}
           </Button>
         )}
       </aside>
