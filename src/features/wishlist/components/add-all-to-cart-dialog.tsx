@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
 
 /**
  * "Add all to cart" modal for a wishlist. Beyond confirming the add, it lets the
@@ -26,16 +26,7 @@ export function AddAllToCartDialog({
   onConfirm: (deleteAfter: boolean) => void;
   onCancel: () => void;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, onCancel]);
+  useModalDismiss(open, onCancel);
 
   if (!open) return null;
 

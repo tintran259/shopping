@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
 import type { Facet } from "@/types/product";
 import { FilterControls } from "../filter-controls";
 
@@ -16,16 +17,7 @@ export function MobileFilterDrawer({
 }) {
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open]);
+  useModalDismiss(open, () => setOpen(false));
 
   return (
     <>

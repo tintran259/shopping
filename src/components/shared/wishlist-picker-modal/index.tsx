@@ -7,23 +7,14 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/pricing";
+import { defaultSelection, findVariant, isOptionValueAvailable } from "@/lib/variant";
 import { getProductBySlug } from "@/services/product.service";
 import { useWishlist } from "@/hooks/use-wishlist";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
+import { CheckIcon, CloseIcon } from "@/components/shared/icons";
 import { VariantOptions } from "@/features/product-detail/components/variant-options";
 import type { Product, ProductVariant } from "@/types/product";
 import type { WishlistItem } from "@/store/wishlist.store";
-
-/** First in-stock value per option (falls back to the first value). */
-function defaultSelection(product: Product): Record<string, string> {
-  return Object.fromEntries(
-    product.options.map((o) => {
-      const inStockVal = o.values.find((v) =>
-        product.variants.some((vr) => vr.options[o.name] === v && vr.stock > 0),
-      );
-      return [o.name, inStockVal ?? o.values[0]];
-    }),
-  );
-}
 
 /** Build the variant-specific wishlist entry (composite id + variant price/label). */
 function buildItem(product: Product, variant: ProductVariant): WishlistItem {
@@ -81,22 +72,10 @@ export function WishlistPickerModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, onClose]);
+  useModalDismiss(open, onClose);
 
   const variant = useMemo(
-    () =>
-      product?.variants.find((v) =>
-        Object.entries(v.options).every(([k, val]) => selected[k] === val),
-      ),
+    () => (product ? findVariant(product, selected) : undefined),
     [product, selected],
   );
 
@@ -104,12 +83,7 @@ export function WishlistPickerModal({
 
   const item = product && variant ? buildItem(product, variant) : null;
   const isAvailable = (optionName: string, value: string) =>
-    !!product?.variants.some(
-      (v) =>
-        v.stock > 0 &&
-        v.options[optionName] === value &&
-        Object.entries(v.options).every(([k, val]) => k === optionName || selected[k] === val),
-    );
+    !!product && isOptionValueAvailable(product, selected, optionName, value);
 
   const create = async () => {
     const n = name.trim();
@@ -133,9 +107,7 @@ export function WishlistPickerModal({
           aria-label="Đóng"
           className="absolute right-3 top-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
+          <CloseIcon />
         </button>
 
         {isLoading || !product ? (
@@ -205,14 +177,10 @@ export function WishlistPickerModal({
                           className={cn(
                             "flex size-5 shrink-0 items-center justify-center rounded-md border transition border-(--theme-checkbox-border,var(--border))",
                             checked &&
-                              "border-transparent bg-(--theme-checkbox-background,var(--primary)) text-(--theme-checkbox-icon,var(--primary-foreground))",
+                            "border-transparent bg-(--theme-checkbox-background,var(--primary)) text-(--theme-checkbox-icon,var(--primary-foreground))",
                           )}
                         >
-                          {checked && (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
+                          {checked && <CheckIcon />}
                         </span>
                         <span className="flex-1 truncate">{l.name}</span>
                         <span className="text-xs text-muted-foreground">{l.items.length}</span>

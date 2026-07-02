@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { useCheckoutStore } from "@/store/checkout.store";
 
@@ -14,8 +15,9 @@ function Label({ children, required }: { children: React.ReactNode; required?: b
   );
 }
 
-/** Optional VAT (red) invoice request. Prominent for B2B; collapsible for everyone. */
-export function VatInvoice({ showErrors }: { showErrors: boolean }) {
+/** Optional VAT (red) invoice request. Prominent for B2B; collapsible for everyone.
+ *  Memoized so keystrokes in sibling checkout sections don't re-render it. */
+export const VatInvoice = memo(function VatInvoice({ showErrors }: { showErrors: boolean }) {
   const invoice = useCheckoutStore((s) => s.invoice);
   const setInvoice = useCheckoutStore((s) => s.setInvoice);
   const missing = (v: string) => showErrors && invoice.requested && !v.trim();
@@ -82,4 +84,4 @@ export function VatInvoice({ showErrors }: { showErrors: boolean }) {
       )}
     </section>
   );
-}
+});

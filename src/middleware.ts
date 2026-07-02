@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 /**
  * Force the BROWSER to revalidate the document with the server on every load,
@@ -13,7 +13,7 @@ import { NextResponse, type NextRequest } from "next/server";
  *
  * We keep `s-maxage`/SWR for shared caches so server/CDN caching is unaffected.
  */
-export function middleware(_req: NextRequest) {
+export function middleware() {
   const res = NextResponse.next();
   res.headers.set(
     "Cache-Control",

@@ -80,6 +80,12 @@ function MobileItem({
 export function MobileNav({ items }: { items: NavNode[] }) {
   const [open, setOpen] = useState(false);
 
+  // Client mount gate — the portal below touches `document`, which doesn't
+  // exist while the page is prerendered on the server.
+  const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client mount gate
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => {
@@ -100,7 +106,8 @@ export function MobileNav({ items }: { items: NavNode[] }) {
 
       {/* Portal to <body> so `fixed` escapes the header's backdrop-filter
           containing block (otherwise the drawer is clipped to the header). */}
-      {createPortal(
+      {mounted &&
+        createPortal(
         <AnimatePresence>
           {open && (
             <motion.div

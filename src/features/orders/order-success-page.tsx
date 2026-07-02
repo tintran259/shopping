@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { useOrderStore } from "@/store/order.store";
 import { useAuthStore } from "@/store/auth.store";
 import { QuickRegisterModal } from "@/features/auth/components/quick-register-modal";

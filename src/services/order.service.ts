@@ -70,6 +70,19 @@ export function newOrderId(): string {
   return "DH" + Date.now().toString(36).toUpperCase().slice(-8);
 }
 
+/** Extract the BE's error message from a failed response (falls back per call). */
+async function parseApiError(res: Response, fallback: string): Promise<Error> {
+  let message = fallback;
+  try {
+    const err = await res.json();
+    const raw = Array.isArray(err?.message) ? err.message[0] : err?.message;
+    if (raw) message = String(raw);
+  } catch {
+    // keep default
+  }
+  return new Error(message);
+}
+
 /** Shape the shared `CheckoutDto` fields (everything except cart items). */
 function buildBody(input: PlaceOrderInput, code?: string): Record<string, unknown> {
   return {
@@ -119,17 +132,7 @@ export async function placeOrder(input: PlaceOrderInput, code: string = newOrder
     },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    let message = "Đặt hàng thất bại, vui lòng thử lại.";
-    try {
-      const err = await res.json();
-      const raw = Array.isArray(err?.message) ? err.message[0] : err?.message;
-      if (raw) message = String(raw);
-    } catch {
-      // keep default
-    }
-    throw new Error(message);
-  }
+  if (!res.ok) throw await parseApiError(res, "Đặt hàng thất bại, vui lòng thử lại.");
   const order = await res.json();
   return { id: order.code, createdAt: order.placedAt ?? order.createdAt ?? new Date().toISOString() };
 }
@@ -223,17 +226,7 @@ export async function cancelOrder(token: string, orderUuid: string): Promise<Ord
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) {
-    let message = "Hủy đơn thất bại, vui lòng thử lại.";
-    try {
-      const err = await res.json();
-      const raw = Array.isArray(err?.message) ? err.message[0] : err?.message;
-      if (raw) message = String(raw);
-    } catch {
-      // keep default
-    }
-    throw new Error(message);
-  }
+  if (!res.ok) throw await parseApiError(res, "Hủy đơn thất bại, vui lòng thử lại.");
   return toOrderRecord(await res.json());
 }
 

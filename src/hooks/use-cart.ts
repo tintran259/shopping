@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth.store";
 import { useBranchStore } from "@/store/branch.store";
-import { useCartStore, type CartLine } from "@/store/cart.store";
+import { clampQty, useCartStore, type CartLine } from "@/store/cart.store";
 import { toast } from "@/store/toast.store";
 import {
   addCartItem,
@@ -38,8 +38,6 @@ export interface UseCart {
   removeMany: (ids: string[]) => void;
   clear: () => void;
 }
-
-const clampQty = (qty: number, max: number) => Math.min(Math.max(1, qty), Math.max(1, max));
 
 /**
  * One cart API for the whole app. Guests read/write the persisted Zustand store;

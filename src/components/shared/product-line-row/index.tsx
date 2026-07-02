@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { discountPercent, formatPrice, isOnSale } from "@/lib/pricing";
+import { QuantityStepper } from "@/components/shared/quantity-stepper";
 
 /**
  * Presentational product line row — shared by the wishlist and the cart.
@@ -145,27 +146,13 @@ export function ProductLineRow({
         {/* Bottom: quantity stepper + line subtotal */}
         {!unavailable && (
           <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <div className="inline-flex h-9 items-center rounded-lg border border-border">
-              <button
-                type="button"
-                onClick={onDecrease}
-                disabled={quantity <= 1}
-                aria-label="Giảm"
-                className="flex h-full w-9 items-center justify-center disabled:opacity-40"
-              >
-                −
-              </button>
-              <span className="w-8 text-center text-sm font-medium tabular-nums">{quantity}</span>
-              <button
-                type="button"
-                onClick={onIncrease}
-                disabled={quantity >= max}
-                aria-label="Tăng"
-                className="flex h-full w-9 items-center justify-center disabled:opacity-40"
-              >
-                +
-              </button>
-            </div>
+            <QuantityStepper
+              quantity={quantity}
+              onDecrease={onDecrease}
+              onIncrease={onIncrease}
+              decreaseDisabled={quantity <= 1}
+              increaseDisabled={quantity >= max}
+            />
             <div className="flex flex-col items-end gap-1">
               {(showRemaining || max <= 20) && <StockChip remaining={max} />}
               <span className="text-sm font-bold tracking-tight tabular-nums">

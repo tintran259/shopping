@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { CloseIcon } from "@/components/shared/icons";
 import { useAuth } from "@/hooks/use-auth";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
 
 const inputCls =
   "h-10 w-full rounded-lg border border-border bg-background px-3 text-sm focus:border-primary focus:outline-none";
@@ -30,16 +32,7 @@ export function QuickRegisterModal({
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, onClose]);
+  useModalDismiss(open, onClose);
 
   if (!open) return null;
 
@@ -70,9 +63,7 @@ export function QuickRegisterModal({
           aria-label="Đóng"
           className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
+          <CloseIcon size={18} />
         </button>
 
         <h2 className="text-base font-semibold">Tạo tài khoản để theo dõi đơn</h2>

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/pricing";
 import { useCheckoutStore } from "@/store/checkout.store";
@@ -9,8 +10,9 @@ import type { Branch } from "@/types/branch";
 const feeLabel = (fee: number, currency: string) =>
   fee === 0 ? "Miễn phí" : formatPrice(fee, currency);
 
-/** Choose home delivery (+ method) or pickup at the fulfilling branch. */
-export function DeliveryOptions({
+/** Choose home delivery (+ method) or pickup at the fulfilling branch.
+ *  Memoized so keystrokes in sibling checkout sections don't re-render it. */
+export const DeliveryOptions = memo(function DeliveryOptions({
   branch,
   methods,
   currency = "VND",
@@ -112,4 +114,4 @@ export function DeliveryOptions({
       )}
     </section>
   );
-}
+});

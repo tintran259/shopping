@@ -3,21 +3,21 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProductLineRow } from "@/components/shared/product-line-row";
+import { ProductLineRowSkeleton } from "@/components/shared/product-line-row/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AddAllToCartDialog } from "@/features/wishlist/components/add-all-to-cart-dialog";
 import { cartLineFromSummary } from "@/features/cart/utils";
-import { getProductBySlug } from "@/services/product.service";
 import { useWishlist } from "@/hooks/use-wishlist";
 import { useCart } from "@/hooks/use-cart";
+import { useLiveBranchStock } from "@/hooks/use-live-branch-stock";
 import { useBranchStore } from "@/store/branch.store";
 import { toast } from "@/store/toast.store";
 import type { WishlistItem } from "@/store/wishlist.store";
 import type { CartLine } from "@/store/cart.store";
-import type { BranchStock } from "@/types/product";
 
 export function WishlistDetailPage({ listId }: { listId: string }) {
   const router = useRouter();
@@ -34,50 +34,38 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
   const [confirmAdd, setConfirmAdd] = useState(false);
 
   const branchId = selectedBranchId ?? undefined;
-  // The variant to buy: the one saved with the item, else the product's default.
-  const variantOf = (item: WishlistItem) => item.variantId ?? item.defaultVariantId;
   // A variant item can be added straight to cart; a variant-product saved without
   // a variant (legacy) still needs the picker.
   const needsVariantChoice = (item: WishlistItem) => !!item.optionPreview && !item.variantId;
 
   // Verify against LIVE stock: the saved branchStock is a snapshot (stale for
-  // guests). Refetch the listed products and read each variant's fresh stock so we
-  // don't let the user add more than is actually available.
+  // guests) — don't let the user add more than is actually available.
   const slugs = useMemo(
     () => [...new Set((list?.items ?? []).map((i) => i.slug))],
     [list],
   );
-  const stockQuery = useQuery({
-    queryKey: ["wishlist-stock", listId, slugs.join(",")],
-    queryFn: () => Promise.all(slugs.map((s) => getProductBySlug(s))),
-    enabled: slugs.length > 0,
-    staleTime: 30_000,
-  });
-  const freshStockByVariant = useMemo(() => {
-    const m = new Map<string, BranchStock[]>();
-    for (const p of stockQuery.data ?? []) {
-      if (!p) continue;
-      for (const v of p.variants) if (v.branchStock) m.set(v.id, v.branchStock);
-    }
-    return m;
-  }, [stockQuery.data]);
+  const { byVariant: freshStockByVariant } = useLiveBranchStock(slugs);
 
   // `max` = how many MORE can be added = branch stock − what's already in the cart.
-  const inCartOf = (item: WishlistItem) => {
-    const vId = variantOf(item);
-    return vId
-      ? cartLines.filter((l) => l.variantId === vId).reduce((n, l) => n + l.quantity, 0)
-      : 0;
-  };
-  const availOf = (item: WishlistItem) => {
-    const vId = variantOf(item);
-    // Live stock when loaded, else fall back to the saved snapshot.
-    const branchStock = (vId && freshStockByVariant.get(vId)) || item.branchStock;
-    const entry = branchId ? branchStock?.find((b) => b.branchId === branchId) : undefined;
-    const available = !branchStock || !branchId ? item.inStock : (entry?.inStock ?? false);
-    const stockCap = available ? entry?.quantity || 99 : 0;
-    return { available, max: Math.max(0, stockCap - inCartOf(item)) };
-  };
+  // Computed once per render — the page reads each item's status several times.
+  const availByItem = useMemo(() => {
+    const m = new Map<string, { available: boolean; max: number }>();
+    for (const item of list?.items ?? []) {
+      const vId = item.variantId ?? item.defaultVariantId;
+      const inCart = vId
+        ? cartLines.filter((l) => l.variantId === vId).reduce((n, l) => n + l.quantity, 0)
+        : 0;
+      // Live stock when loaded, else fall back to the saved snapshot.
+      const branchStock = (vId && freshStockByVariant.get(vId)) || item.branchStock;
+      const entry = branchId ? branchStock?.find((b) => b.branchId === branchId) : undefined;
+      const available = !branchStock || !branchId ? item.inStock : (entry?.inStock ?? false);
+      const stockCap = available ? entry?.quantity || 99 : 0;
+      m.set(item.id, { available, max: Math.max(0, stockCap - inCart) });
+    }
+    return m;
+  }, [list, cartLines, freshStockByVariant, branchId]);
+  const availOf = (item: WishlistItem) =>
+    availByItem.get(item.id) ?? { available: false, max: 0 };
   // Build a cart line for a wishlist item, pinning the saved variant (id + label).
   const toCartLine = (item: WishlistItem, qty: number): CartLine => {
     const line = cartLineFromSummary(item, qty, branchId);
@@ -152,19 +140,8 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
   if (!ready) {
     return (
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:py-10">
-        <div className="mb-8 h-9 w-56 animate-pulse rounded bg-muted" />
-        <div className="space-y-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex gap-4">
-              <div className="size-20 animate-pulse rounded-xl bg-muted sm:size-24" />
-              <div className="flex-1 space-y-2 py-1">
-                <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-                <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-                <div className="h-8 w-40 animate-pulse rounded bg-muted" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <Skeleton className="mb-8 h-9 w-56" />
+        <ProductLineRowSkeleton rows={5} />
       </main>
     );
   }

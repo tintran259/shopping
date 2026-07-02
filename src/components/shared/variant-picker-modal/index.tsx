@@ -6,23 +6,14 @@ import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/pricing";
+import { defaultSelection, findVariant, isOptionValueAvailable } from "@/lib/variant";
 import { getProductBySlug } from "@/services/product.service";
 import { useCart } from "@/hooks/use-cart";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
+import { CloseIcon } from "@/components/shared/icons";
+import { QuantityStepper } from "@/components/shared/quantity-stepper";
 import { useBranchStore } from "@/store/branch.store";
 import { VariantOptions } from "@/features/product-detail/components/variant-options";
-import type { Product } from "@/types/product";
-
-/** First in-stock value per option (falls back to the first value). */
-function defaultSelection(product: Product): Record<string, string> {
-  return Object.fromEntries(
-    product.options.map((o) => {
-      const inStockVal = o.values.find((v) =>
-        product.variants.some((vr) => vr.options[o.name] === v && vr.stock > 0),
-      );
-      return [o.name, inStockVal ?? o.values[0]];
-    }),
-  );
-}
 
 /**
  * Shopee-style "choose variant" popup for adding a multi-variant product to the
@@ -61,33 +52,17 @@ export function VariantPickerModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, onClose]);
+  useModalDismiss(open, onClose);
 
-  const variant = useMemo(() => {
-    if (!product) return undefined;
-    return product.variants.find((v) =>
-      Object.entries(v.options).every(([k, val]) => selected[k] === val),
-    );
-  }, [product, selected]);
+  const variant = useMemo(
+    () => (product ? findVariant(product, selected) : undefined),
+    [product, selected],
+  );
 
   if (!open) return null;
 
   const isAvailable = (optionName: string, value: string) =>
-    !!product?.variants.some(
-      (v) =>
-        v.stock > 0 &&
-        v.options[optionName] === value &&
-        Object.entries(v.options).every(([k, val]) => k === optionName || selected[k] === val),
-    );
+    !!product && isOptionValueAvailable(product, selected, optionName, value);
 
   const priceObj = variant?.price ?? product?.price;
   const branchEntry = branchId ? variant?.branchStock?.find((b) => b.branchId === branchId) : undefined;
@@ -140,9 +115,7 @@ export function VariantPickerModal({
           aria-label="Đóng"
           className="absolute right-3 top-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
+          <CloseIcon />
         </button>
 
         {isLoading || !product ? (
@@ -205,27 +178,14 @@ export function VariantPickerModal({
 
             {/* Quantity + add */}
             <div className="mt-5 flex items-center gap-3">
-              <div className="inline-flex h-11 items-center rounded-lg border border-border">
-                <button
-                  type="button"
-                  onClick={() => setQty((q) => Math.max(1, q - 1))}
-                  disabled={qty <= 1}
-                  aria-label="Giảm"
-                  className="flex h-full w-10 items-center justify-center text-lg disabled:opacity-40"
-                >
-                  −
-                </button>
-                <span className="w-9 text-center text-sm font-medium tabular-nums">{qty}</span>
-                <button
-                  type="button"
-                  onClick={() => setQty((q) => Math.min(q + 1, max))}
-                  disabled={qty >= max}
-                  aria-label="Tăng"
-                  className="flex h-full w-10 items-center justify-center text-lg disabled:opacity-40"
-                >
-                  +
-                </button>
-              </div>
+              <QuantityStepper
+                size="lg"
+                quantity={qty}
+                onDecrease={() => setQty((q) => Math.max(1, q - 1))}
+                onIncrease={() => setQty((q) => Math.min(q + 1, max))}
+                decreaseDisabled={qty <= 1}
+                increaseDisabled={qty >= max}
+              />
 
               <Button size="lg" className="h-11 flex-1 rounded-lg text-sm" onClick={onAdd} disabled={!canAdd}>
                 {!variant

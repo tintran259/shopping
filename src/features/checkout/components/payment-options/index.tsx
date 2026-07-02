@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useCheckoutStore } from "@/store/checkout.store";
 import { PAYMENT_METHODS } from "../../constants";
 
 /** Payment method picker. COD + bank transfer work today; gateway methods (MoMo,
- *  card) are shown disabled ("Sắp có") until a real gateway/BE is integrated. */
-export function PaymentOptions() {
+ *  card) are shown disabled ("Sắp có") until a real gateway/BE is integrated.
+ *  Memoized so keystrokes in sibling checkout sections don't re-render it. */
+export const PaymentOptions = memo(function PaymentOptions() {
   const paymentMethodId = useCheckoutStore((s) => s.paymentMethodId);
   const update = useCheckoutStore((s) => s.update);
 
@@ -69,4 +70,4 @@ export function PaymentOptions() {
       </div>
     </section>
   );
-}
+});

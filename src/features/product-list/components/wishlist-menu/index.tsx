@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { CheckIcon, CloseIcon } from "@/components/shared/icons";
 import { useWishlist } from "@/hooks/use-wishlist";
 import { baseProductId } from "@/store/wishlist.store";
 import { WishlistPickerModal } from "@/components/shared/wishlist-picker-modal";
@@ -127,9 +128,7 @@ export function WishlistMenu({
                   aria-label="Đóng"
                   className="-mr-1 -mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                    <path d="M18 6 6 18M6 6l12 12" />
-                  </svg>
+                  <CloseIcon size={14} />
                 </button>
               </div>
 
@@ -159,11 +158,7 @@ export function WishlistMenu({
                               "border-transparent bg-(--theme-checkbox-background,var(--primary)) text-(--theme-checkbox-icon,var(--primary-foreground))",
                           )}
                         >
-                          {checked && (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
+                          {checked && <CheckIcon />}
                         </span>
                         <span className={cn("flex-1 truncate", checked && "font-medium")}>{l.name}</span>
                         <span className="text-xs text-muted-foreground">{l.items.length}</span>

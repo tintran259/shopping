@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
 import { BankTransfer } from "@/features/orders/components/bank-transfer";
 
 /**
@@ -27,16 +27,8 @@ export function BankTransferModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !submitting && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, submitting, onClose]);
+  // Escape is ignored mid-submit — the order is being placed at that point.
+  useModalDismiss(open, () => !submitting && onClose());
 
   if (!open) return null;
 

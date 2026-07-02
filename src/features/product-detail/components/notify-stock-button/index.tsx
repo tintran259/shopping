@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
 import { useAuthStore } from "@/store/auth.store";
 
 type Channel = "email" | "phone";
@@ -35,16 +36,7 @@ export function NotifyStockButton({
   const [choice, setChoice] = useState<Channel>(contacts[0]?.type ?? "email");
   const [input, setInput] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open]);
+  useModalDismiss(open, () => setOpen(false));
 
   // TODO: POST to the BE back-in-stock subscription endpoint.
   const register = (via: string) => {

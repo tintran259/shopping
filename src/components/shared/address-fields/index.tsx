@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useProvinces, useWards } from "@/hooks/use-location";
 import { SearchSelect } from "@/components/shared/search-select";
-import { VN_PROVINCES } from "@/features/checkout/constants";
 
 const inputCls =
   "h-10 w-full rounded-lg border border-border bg-background px-3 text-sm focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-50";
@@ -42,7 +41,6 @@ export function AddressFields({
 }) {
   const provinces = useProvinces();
   const wards = useWards(value.provinceCode ? Number(value.provinceCode) : undefined);
-  const apiOk = provinces.isSuccess && provinces.data.length > 0;
 
   const provinceOpts = useMemo(
     () => (provinces.data ?? []).map((p) => ({ value: String(p.code), label: p.name })),
@@ -52,8 +50,6 @@ export function AddressFields({
     () => (wards.data ?? []).map((w) => ({ value: String(w.code), label: w.name })),
     [wards.data],
   );
-  const provinceFallbackOpts = useMemo(() => VN_PROVINCES.map((p) => ({ value: p, label: p })), []);
-
   const nameOf = (units: { code: number; name: string }[] | undefined, code: string) =>
     units?.find((u) => String(u.code) === code)?.name ?? "";
 

@@ -4,7 +4,10 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { WarningIcon } from "@/components/shared/icons";
+import { QuantityStepper } from "@/components/shared/quantity-stepper";
 import { discountPercent, formatPrice, isOnSale } from "@/lib/pricing";
+import { defaultSelection, findVariant, isOptionValueAvailable } from "@/lib/variant";
 import { useCart } from "@/hooks/use-cart";
 import { useBranchStore } from "@/store/branch.store";
 import { resolveDefaultBranch } from "@/services/branch.service";
@@ -29,18 +32,6 @@ function BranchLine({ ok, label }: { ok: boolean; label: string }) {
         {label}
       </span>
     </div>
-  );
-}
-
-/** First value per option that has an in-stock variant (falls back to first value). */
-function defaultSelection(product: Product): Record<string, string> {
-  return Object.fromEntries(
-    product.options.map((o) => {
-      const inStockVal = o.values.find((v) =>
-        product.variants.some((vr) => vr.options[o.name] === v && vr.stock > 0),
-      );
-      return [o.name, inStockVal ?? o.values[0]];
-    }),
   );
 }
 
@@ -74,23 +65,13 @@ export function ProductPurchase({
 
   const hasVariants = live.variants.length > 0;
 
-  const variant = useMemo(() => {
-    if (!hasVariants) return undefined;
-    return live.variants.find((v) =>
-      Object.entries(v.options).every(([k, val]) => selected[k] === val),
-    );
-  }, [hasVariants, live.variants, selected]);
+  const variant = useMemo(
+    () => (hasVariants ? findVariant(live, selected) : undefined),
+    [hasVariants, live, selected],
+  );
 
-  // A value is available if some in-stock variant has it + matches the other picks.
-  const isAvailable = (optionName: string, value: string) => {
-    if (!hasVariants) return true;
-    return live.variants.some(
-      (v) =>
-        v.stock > 0 &&
-        v.options[optionName] === value &&
-        Object.entries(v.options).every(([k, val]) => k === optionName || selected[k] === val),
-    );
-  };
+  const isAvailable = (optionName: string, value: string) =>
+    !hasVariants || isOptionValueAvailable(live, selected, optionName, value);
 
   const price = variant?.price ?? live.price;
   const sale = isOnSale(price);
@@ -134,9 +115,7 @@ export function ProductPurchase({
   const pickOption = (name: string, value: string) => {
     const next = { ...selected, [name]: value };
     // Stock of the variant we're switching TO — clamp qty so it never exceeds it.
-    const nextVariant = hasVariants
-      ? live.variants.find((v) => Object.entries(v.options).every(([k, val]) => next[k] === val))
-      : undefined;
+    const nextVariant = hasVariants ? findVariant(live, next) : undefined;
     const nextStock = hasVariants ? (nextVariant?.stock ?? 0) : live.inStock ? 99 : 0;
     setSelected(next);
     setQty((q) => Math.min(Math.max(1, q), Math.max(1, nextStock)));
@@ -268,31 +247,19 @@ export function ProductPurchase({
       ) : (
         <>
           <div className="flex items-center gap-3">
-            <div
+            {/* `+` stays enabled at max so hitting it can flash the limit warning. */}
+            <QuantityStepper
+              size="lg"
+              quantity={qty}
+              onDecrease={() => setQty((q) => Math.max(1, q - 1))}
+              onIncrease={increase}
+              decreaseDisabled={qty <= 1}
               className={cn(
-                "inline-flex h-11 items-center rounded-lg border transition",
-                limitHit ? "border-(--theme-warning,#d97706) ring-2 ring-(--theme-warning,#d97706)/30" : "border-border",
+                "transition",
+                limitHit &&
+                  "border-(--theme-warning,#d97706) ring-2 ring-(--theme-warning,#d97706)/30",
               )}
-            >
-              <button
-                type="button"
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-                disabled={qty <= 1}
-                aria-label="Giảm"
-                className="flex h-full w-10 items-center justify-center text-lg disabled:opacity-40"
-              >
-                −
-              </button>
-              <span className="w-9 text-center text-sm font-medium tabular-nums">{qty}</span>
-              <button
-                type="button"
-                onClick={increase}
-                aria-label="Tăng"
-                className="flex h-full w-10 items-center justify-center text-lg"
-              >
-                +
-              </button>
-            </div>
+            />
 
             <Button size="lg" className="h-11 flex-1 rounded-lg text-sm" onClick={onAdd}>
               {added ? "Đã thêm vào giỏ ✓" : isPreorder ? "Đặt trước" : "Thêm vào giỏ"}
@@ -307,9 +274,7 @@ export function ProductPurchase({
               role="alert"
               className="flex items-center gap-2 rounded-lg border border-(--theme-warning,#d97706)/40 bg-(--theme-warning,#d97706)/10 px-3 py-2 text-xs font-medium text-(--theme-warning,#b45309)"
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
-              </svg>
+              <WarningIcon />
               {inCart > 0
                 ? `Bạn đã có ${inCart} trong giỏ — chỉ thêm được ${remainingAddable} sản phẩm nữa.`
                 : `Đã đạt tối đa — chỉ còn ${branchQty} sản phẩm.`}

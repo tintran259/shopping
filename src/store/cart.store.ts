@@ -40,7 +40,9 @@ interface CartState {
   totalQuantity: () => number;
 }
 
-const clampQty = (qty: number, max: number) => Math.min(Math.max(1, qty), Math.max(1, max));
+/** Clamp a quantity to [1, max] (max floored at 1). Shared with `useCart`. */
+export const clampQty = (qty: number, max: number) =>
+  Math.min(Math.max(1, qty), Math.max(1, max));
 
 /**
  * Client-only cart state (Zustand). Server state lives in React Query —

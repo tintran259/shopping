@@ -46,6 +46,7 @@ export function ScheduledBlock({
   useEffect(() => {
     if (start === null && end === null) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-sync with the clock when the window props change
     setVisible(inWindow(Date.now(), start, end));
 
     const now = Date.now();

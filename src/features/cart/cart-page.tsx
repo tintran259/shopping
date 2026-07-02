@@ -2,20 +2,20 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProductLineRow } from "@/components/shared/product-line-row";
+import { ProductLineRowSkeleton } from "@/components/shared/product-line-row/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { VoucherSection } from "@/features/cart/components/voucher";
 import { formatPrice } from "@/lib/pricing";
-import { getProductBySlug } from "@/services/product.service";
 import { useCart } from "@/hooks/use-cart";
+import { useLiveBranchStock } from "@/hooks/use-live-branch-stock";
 import { useBranchStore } from "@/store/branch.store";
 import { useVoucherStore } from "@/store/voucher.store";
 import { discountFor, findVoucher } from "@/services/voucher.service";
 import type { CartLine } from "@/store/cart.store";
-import type { BranchStock } from "@/types/product";
 
 const FREE_SHIP_THRESHOLD = 500_000;
 
@@ -27,56 +27,34 @@ export function CartPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRemoveOos, setConfirmRemoveOos] = useState(false);
 
-  // Verify against LIVE stock (the cart line's branchStock is a snapshot). Refetch
-  // the listed products and read each variant's fresh per-branch availability.
+  // Verify against LIVE stock (the cart line's branchStock is a snapshot).
   const slugs = useMemo(() => [...new Set(lines.map((l) => l.slug))], [lines]);
-  const stockQuery = useQuery({
-    queryKey: ["cart-stock", slugs.join(",")],
-    queryFn: () => Promise.all(slugs.map((s) => getProductBySlug(s))),
-    enabled: slugs.length > 0,
-    staleTime: 30_000,
-    // Keep the last verified stock while re-verifying after add/remove changes
-    // the slug set — avoids flashing the skeleton on every cart mutation.
-    placeholderData: keepPreviousData,
-  });
-  const freshByVariant = useMemo(() => {
-    const m = new Map<string, BranchStock[]>();
-    for (const p of stockQuery.data ?? []) {
-      if (!p) continue;
-      for (const v of p.variants) if (v.branchStock) m.set(v.id, v.branchStock);
-    }
-    return m;
-  }, [stockQuery.data]);
+  const { byVariant: freshByVariant, ready: stockReady } = useLiveBranchStock(slugs);
 
   // Per-line status: in stock at branch? how many available? does qty exceed it?
-  const stat = (line: CartLine) => {
-    const stock = (line.variantId && freshByVariant.get(line.variantId)) || line.branchStock;
-    const entry = selectedBranchId ? stock?.find((b) => b.branchId === selectedBranchId) : undefined;
-    const inStock = !stock || !selectedBranchId ? true : (entry?.inStock ?? false);
-    const available = inStock ? (entry?.quantity ?? line.maxStock ?? 99) : 0;
-    return { inStock, available, exceed: inStock && line.quantity > available };
-  };
+  // Computed once per render (the page reads each line's status several times).
+  const statByLine = useMemo(() => {
+    const m = new Map<string, { inStock: boolean; available: number; exceed: boolean }>();
+    for (const line of lines) {
+      const stock = (line.variantId && freshByVariant.get(line.variantId)) || line.branchStock;
+      const entry = selectedBranchId ? stock?.find((b) => b.branchId === selectedBranchId) : undefined;
+      const inStock = !stock || !selectedBranchId ? true : (entry?.inStock ?? false);
+      const available = inStock ? (entry?.quantity ?? line.maxStock ?? 99) : 0;
+      m.set(line.id, { inStock, available, exceed: inStock && line.quantity > available });
+    }
+    return m;
+  }, [lines, freshByVariant, selectedBranchId]);
+  const stat = (line: CartLine) => statByLine.get(line.id)!;
 
   // Hold the skeleton until LIVE stock is verified too — otherwise the stale
   // snapshot briefly drives OOS/over-limit banners before the fresh data lands.
-  const stockReady = slugs.length === 0 || stockQuery.isSuccess || stockQuery.isError;
-
   if (!ready || !stockReady) {
     return (
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex gap-4">
-              <div className="size-20 animate-pulse rounded-xl bg-muted sm:size-24" />
-              <div className="flex-1 space-y-2 py-1">
-                <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-                <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-                <div className="h-8 w-40 animate-pulse rounded bg-muted" />
-              </div>
-            </div>
-          ))}
+        <div className="min-w-0">
+          <ProductLineRowSkeleton rows={3} />
         </div>
-        <div className="h-64 animate-pulse rounded-2xl bg-muted" />
+        <Skeleton className="h-64 rounded-2xl" />
       </div>
     );
   }

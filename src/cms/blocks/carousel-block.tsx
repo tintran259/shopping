@@ -95,6 +95,7 @@ export function CarouselBlock({ block }: { block: CarouselBlockVM }) {
 
   useEffect(() => {
     if (!emblaApi) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync dot state once the embla API is ready
     onSelect();
     emblaApi.on("select", onSelect).on("reInit", onSelect);
     return () => {

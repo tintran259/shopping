@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { useCheckoutStore } from "@/store/checkout.store";
 import { useAddresses } from "@/hooks/use-addresses";
@@ -22,10 +23,26 @@ const fullAddress = (a: UserAddress) =>
   [a.street, a.ward, a.province].filter(Boolean).join(", ");
 
 /** Recipient contact + (for home delivery) the shipping address. Logged-in users with
- *  saved addresses get a quick-pick list; anyone can enter a new address instead. */
-export function ContactAddress({ showErrors }: { showErrors: boolean }) {
+ *  saved addresses get a quick-pick list; anyone can enter a new address instead.
+ *  Memoized + slice-selected so typing here doesn't re-render sibling sections
+ *  (and edits to invoice/payment don't re-render this one). */
+export const ContactAddress = memo(function ContactAddress({
+  showErrors,
+}: {
+  showErrors: boolean;
+}) {
   const { recipientName, phone, email, address, fulfillment, update, setAddress } =
-    useCheckoutStore();
+    useCheckoutStore(
+      useShallow((s) => ({
+        recipientName: s.recipientName,
+        phone: s.phone,
+        email: s.email,
+        address: s.address,
+        fulfillment: s.fulfillment,
+        update: s.update,
+        setAddress: s.setAddress,
+      })),
+    );
   const { addresses } = useAddresses();
   const isDelivery = fulfillment === "delivery";
   const hasSaved = addresses.length > 0;
@@ -196,4 +213,4 @@ export function ContactAddress({ showErrors }: { showErrors: boolean }) {
       )}
     </section>
   );
-}
+});

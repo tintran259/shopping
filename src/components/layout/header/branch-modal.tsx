@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
 import type { Branch } from "@/types/branch";
 import { CloseIcon, MapPinIcon, CheckIcon } from "./icons";
 
@@ -27,16 +27,8 @@ export function BranchModal({
   onSelect: (id: string) => void;
   onClose: () => void;
 }) {
-  // Lock body scroll + close on Escape while open.
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = "";
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
+  // Conditionally mounted, so the modal is always "open" while rendered.
+  useModalDismiss(true, onClose);
 
   const groups = groupByCity(branches);
 

@@ -99,14 +99,18 @@ export async function searchSuggestions(query: string, limit = 6): Promise<Searc
   if (q.length < 2) return empty;
 
   try {
-    const res = await fetch(`${API}/products?q=${encodeURIComponent(q)}&limit=${limit}`, {
-      cache: "no-store",
-    });
+    // Products (BE) + categories (cached) are independent — fetch in parallel.
+    const [res, allCategories] = await Promise.all([
+      fetch(`${API}/products?q=${encodeURIComponent(q)}&limit=${limit}`, {
+        cache: "no-store",
+      }),
+      getCategories(),
+    ]);
     if (!res.ok) return empty;
     const data = (await res.json()) as ProductListResult;
 
     const nq = normalize(q);
-    const categories = (await getCategories())
+    const categories = allCategories
       .filter((c) => normalize(c.name).includes(nq))
       .slice(0, 4);
 

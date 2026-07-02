@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
 import { AddressFields } from "@/components/shared/address-fields";
 import type { UserAddress } from "@/store/address.store";
 
@@ -55,16 +56,7 @@ export function AddressForm({
     setShowErrors(false);
   }, [open, initial]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, onClose]);
+  useModalDismiss(open, onClose);
 
   if (!open) return null;
 

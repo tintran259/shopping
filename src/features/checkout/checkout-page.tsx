@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -83,7 +83,8 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
     addr.provinceCode && branch?.provinceCode
       ? addr.provinceCode === branch.provinceCode
       : !!addr.province && branch?.city === addr.province;
-  const deliveryMethods = getDeliveryMethods(sameProvince);
+  // Stable reference so the memoized DeliveryOptions doesn't re-render per keystroke.
+  const deliveryMethods = useMemo(() => getDeliveryMethods(sameProvince), [sameProvince]);
   const shippingMethod = isPickup
     ? PICKUP_METHOD
     : deliveryMethods.find((m) => m.id === checkout.shippingMethodId) ?? deliveryMethods[0];

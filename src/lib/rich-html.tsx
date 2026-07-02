@@ -37,12 +37,12 @@ const options: HTMLReactParserOptions = {
     const { src, alt, width, height, style } = node.attribs;
     if (!src) return null;
 
-    const imageStyle: React.CSSProperties = {};
+    const imageStyle: Record<string, string> = {};
 
     parseStyle(style ?? "", (name, value) => {
       if (name !== "width" && name !== "height") {
         const camelCase = name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        imageStyle[camelCase as keyof React.CSSProperties] = value as any;
+        imageStyle[camelCase] = value;
       }
     });
 
