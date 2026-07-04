@@ -159,6 +159,7 @@ export function useWishlist(): UseWishlist {
               slug: item.slug,
               name: item.name,
               thumbnail: item.thumbnail,
+              defaultVariantId: item.defaultVariantId ?? null,
               price: {
                 amount: item.price.amount,
                 compareAt: item.price.compareAt ?? null,

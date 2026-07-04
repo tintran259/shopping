@@ -26,7 +26,7 @@ const PAYMENT_LABEL: Record<string, string> = {
   card: "Thẻ ATM / Visa / Mastercard",
 };
 
-// BE OrderStatus → Vietnamese label for display.
+// BE OrderStatus → Vietnamese label for DELIVERY orders.
 const STATUS_LABEL: Record<string, string> = {
   pending: "Đang xử lý",
   confirmed: "Đã xác nhận",
@@ -35,6 +35,28 @@ const STATUS_LABEL: Record<string, string> = {
   delivered: "Đã giao",
   cancelled: "Đã hủy",
 };
+
+// PICKUP orders never ship. The BO advances them pending → confirmed →
+// processing (= "Đã đóng hàng xong": packed, waiting at the branch) → delivered
+// (= customer collected), SKIPPING `shipped` entirely (the dashboard filters it
+// out of the dropdown — see shopping-dashboard orders/lib/labels.ts). Wording
+// here mirrors that flow for the customer; `shipped` keeps the packed label as
+// a safety net for stray data.
+const PICKUP_STATUS_LABEL: Record<string, string> = {
+  ...STATUS_LABEL,
+  processing: "Đã đóng hàng — sẵn sàng nhận",
+  shipped: "Đã đóng hàng — sẵn sàng nhận",
+  delivered: "Đã nhận hàng",
+};
+
+/** Display label for a BE order status, worded per fulfillment. */
+export function orderStatusLabel(
+  status: string,
+  fulfillment: "delivery" | "pickup",
+): string {
+  const map = fulfillment === "pickup" ? PICKUP_STATUS_LABEL : STATUS_LABEL;
+  return map[status] ?? status;
+}
 
 export interface OrderItemInput {
   id: string;
@@ -65,9 +87,26 @@ export interface PlacedOrder {
   createdAt: string;
 }
 
-/** Order code generator — exposed so the bank-transfer QR can preset the code (memo). */
-export function newOrderId(): string {
-  return "DH" + Date.now().toString(36).toUpperCase().slice(-8);
+// Fulfillment/payment → order-code prefix (mirrors BE OrdersService.generateOrderCode,
+// keyed by the checkout's own ids so a future payment method just needs an entry here).
+const FULFILLMENT_CODE_PREFIX: Record<"delivery" | "pickup", string> = {
+  delivery: "GH",
+  pickup: "PU",
+};
+const PAYMENT_CODE_PREFIX: Record<string, string> = {
+  cod: "COD",
+  bank: "BANK",
+  momo: "MM",
+  card: "TT",
+};
+
+/** Order code generator — exposed so the bank-transfer QR can preset the code (memo).
+ *  Prefix must mirror the BE's so a client-preset code and a BE-generated fallback look
+ *  the same. */
+export function newOrderId(fulfillment: "delivery" | "pickup", paymentMethodId: string): string {
+  const suffix = Date.now().toString(36).toUpperCase().slice(-8);
+  const paymentPrefix = PAYMENT_CODE_PREFIX[paymentMethodId] ?? paymentMethodId.toUpperCase();
+  return `${FULFILLMENT_CODE_PREFIX[fulfillment]}-${paymentPrefix}-${suffix}`;
 }
 
 /** Extract the BE's error message from a failed response (falls back per call). */
@@ -110,7 +149,10 @@ function buildBody(input: PlaceOrderInput, code?: string): Record<string, unknow
   };
 }
 
-export async function placeOrder(input: PlaceOrderInput, code: string = newOrderId()): Promise<PlacedOrder> {
+export async function placeOrder(
+  input: PlaceOrderInput,
+  code: string = newOrderId(input.fulfillment, input.paymentMethodId),
+): Promise<PlacedOrder> {
   const token = useAuthStore.getState().token;
   const body = buildBody(input, code);
 
@@ -157,6 +199,7 @@ interface ApiOrder {
   recipientPhone: string;
   recipientEmail?: string;
   shippingAddress?: { provinceName?: string; wardName?: string; street?: string } | null;
+  branch?: { name: string; phone?: string | null; address?: string | null } | null;
   subtotal: string;
   shippingFee: string;
   discountTotal: string;
@@ -178,13 +221,16 @@ function toOrderRecord(o: ApiOrder): OrderRecord {
     uuid: o.id,
     cancellable: CANCELLABLE_STATUS.has(o.status),
     createdAt: o.placedAt ?? o.createdAt ?? new Date().toISOString(),
-    status: STATUS_LABEL[o.status] ?? o.status,
+    status: orderStatusLabel(o.status, o.fulfillment),
+    statusCode: o.status,
     recipientName: o.recipientName,
     phone: o.recipientPhone,
     email: o.recipientEmail || undefined,
     fulfillment: o.fulfillment,
     paymentMethodId: o.paymentMethodCode ?? "",
     paymentLabel: PAYMENT_LABEL[o.paymentMethodCode ?? ""] ?? "—",
+    branchName: o.branch?.name,
+    branchPhone: o.branch?.phone ?? undefined,
     address: o.fulfillment === "delivery" ? addr : undefined,
     items: o.items.map((it, idx) => ({
       id: `${it.productName}-${idx}`,

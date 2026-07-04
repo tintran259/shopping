@@ -13,8 +13,9 @@ import { cancelOrder, fetchMyOrders } from "@/services/order.service";
 import { OrderDetail } from "@/features/orders/components/order-detail";
 import { AccountShell } from "./components/account-shell";
 
-/** Statuses that read as "done" → neutral badge; everything else is in-progress. */
-const DONE = new Set(["Đã giao", "Đã hủy"]);
+/** Raw BE statuses that read as "done" → neutral badge; everything else is
+ *  in-progress. Compared on `statusCode`, not the fulfillment-worded label. */
+const DONE = new Set(["delivered", "cancelled"]);
 
 export function AccountOrdersPage() {
   const token = useAuthStore((s) => s.token);
@@ -85,7 +86,7 @@ export function AccountOrdersPage() {
                       <span
                         className={cn(
                           "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                          DONE.has(o.status)
+                          DONE.has(o.statusCode ?? "")
                             ? "bg-muted text-muted-foreground"
                             : "bg-(--theme-success,#059669) text-white",
                         )}

@@ -45,7 +45,12 @@ export function OrderDetail({
         <dl className="mt-3 space-y-2 text-sm">
           <Row label="Người nhận" value={`${order.recipientName} · ${order.phone}`} />
           <Row label="Hình thức" value={order.fulfillment === "pickup" ? "Nhận tại chi nhánh" : "Giao tận nơi"} />
-          {order.branchName && <Row label="Chi nhánh" value={order.branchName} />}
+          {order.branchName && (
+            <Row
+              label="Chi nhánh"
+              value={order.branchPhone ? `${order.branchName} · ${order.branchPhone}` : order.branchName}
+            />
+          )}
           {order.address && <Row label="Địa chỉ" value={order.address} />}
           <Row label="Thanh toán" value={order.paymentLabel} />
         </dl>

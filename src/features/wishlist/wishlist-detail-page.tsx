@@ -116,7 +116,15 @@ export function WishlistDetailPage({ listId }: { listId: string }) {
         skipped += 1;
         continue;
       }
-      addLine(toCartLine(item, Math.min(getQty(item.id), max)));
+      const line = toCartLine(item, Math.min(getQty(item.id), max));
+      if (!line.variantId) {
+        // No purchasable variant resolved — the cart is variant-keyed, so this
+        // line would be dropped silently by addLine. Count it as needing a
+        // variant instead of pretending it was added.
+        variantSkipped += 1;
+        continue;
+      }
+      addLine(line);
       added += 1;
     }
     setConfirmAdd(false);

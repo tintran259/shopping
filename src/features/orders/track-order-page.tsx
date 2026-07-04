@@ -36,7 +36,7 @@ export function TrackOrderPage() {
       <form onSubmit={onSubmit} className="mt-6 grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">Mã đơn hàng</label>
-          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="DHXXXXXX" className={inputCls} />
+          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="GH-COD-XXXXXX" className={inputCls} />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">Số điện thoại</label>

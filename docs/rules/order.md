@@ -91,6 +91,25 @@ maps the BE order → `OrderRecord`; each item shows: **image + quantity badge**
 **variant label** (`item.detail` ← `variantTitle`), and **`đơn giá × số lượng`** plus the
 line total. The same layout is used in the checkout `OrderSummary`.
 
+### Status display (fulfillment-aware)
+
+- The BE has **one** `OrderStatus` enum (`pending → confirmed → processing → shipped →
+  delivered / cancelled`) for both fulfillments; only the **wording** differs per app.
+- **Pickup orders never pass through `shipped`.** The BO (shopping-dashboard) advances
+  them `pending → confirmed → processing → delivered` and filters `shipped` out of its
+  dropdown; for pickup, `processing` means "Đã đóng hàng xong" (packed, waiting at the
+  branch) and `delivered` means the customer collected. This convention is shared
+  across shopping-dashboard (`orders/lib/labels.ts`) and the storefront — change both
+  together.
+- `orderStatusLabel(status, fulfillment)` (`order.service`) is the storefront mapping:
+  - **delivery**: `processing` = "Đang chuẩn bị hàng", `shipped` = "Đang giao",
+    `delivered` = "Đã giao".
+  - **pickup**: `processing` (and stray `shipped`) = "Đã đóng hàng — sẵn sàng nhận",
+    `delivered` = "Đã nhận hàng".
+- `OrderRecord` carries both `status` (the worded label, display only) and
+  **`statusCode`** (raw BE code). **Any logic — done/in-progress badges, filters —
+  must compare `statusCode`, never the label** (labels vary by fulfillment).
+
 ## Inventory: reserve → commit → release
 
 Stock has two counters: **`quantity`** (physical on hand) + **`reserved`** (held by

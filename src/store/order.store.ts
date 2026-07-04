@@ -18,7 +18,11 @@ export interface OrderRecord {
   /** BE says this order may still be cancelled by the customer. */
   cancellable?: boolean;
   createdAt: string;
+  /** Display label, already worded per fulfillment (see `orderStatusLabel`). */
   status: string;
+  /** Raw BE status code (`pending`…`cancelled`) — use this for logic, not the
+   *  label. Absent on device-local records written at checkout time. */
+  statusCode?: string;
   recipientName: string;
   phone: string;
   email?: string;
@@ -26,6 +30,7 @@ export interface OrderRecord {
   paymentMethodId: string;
   paymentLabel: string;
   branchName?: string;
+  branchPhone?: string;
   address?: string;
   items: OrderRecordItem[];
   subtotal: number;

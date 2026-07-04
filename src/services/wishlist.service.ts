@@ -17,6 +17,8 @@ interface ApiWishlistProduct {
   slug: string;
   name: string;
   thumbnail: { url: string; alt: string };
+  /** Cheapest/only variant — the add-to-cart target when no variant is pinned. */
+  defaultVariantId?: string | null;
   price: { amount: number; compareAt: number | null; currency: string };
   priceVaries: boolean;
   brand?: { id: string; slug: string; name: string } | null;

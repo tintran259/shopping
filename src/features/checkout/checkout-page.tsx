@@ -149,6 +149,7 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
         id: order.id,
         createdAt: order.createdAt,
         status: isBank ? "Chờ xác nhận thanh toán" : "Đang xử lý",
+        statusCode: "pending",
         recipientName: checkout.recipientName,
         phone: checkout.phone,
         email: checkout.email || undefined,
@@ -156,6 +157,7 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
         paymentMethodId: checkout.paymentMethodId,
         paymentLabel: PAYMENT_METHODS.find((m) => m.id === checkout.paymentMethodId)?.label ?? "—",
         branchName: isPickup ? branch?.name : undefined,
+        branchPhone: isPickup ? (branch?.phone ?? undefined) : undefined,
         address: isPickup
           ? undefined
           : [checkout.address.street, checkout.address.ward, checkout.address.province]
@@ -192,7 +194,7 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
     // Bank transfer: show the account/QR step first; the order is placed only after
     // the customer confirms they've paid (QR memo = the code we'll use).
     if (isBank) {
-      setBankCode(newOrderId());
+      setBankCode(newOrderId(checkout.fulfillment, checkout.paymentMethodId));
       return;
     }
     finalize();
