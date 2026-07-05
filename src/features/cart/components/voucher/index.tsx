@@ -1,10 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { CloseIcon } from "@/components/shared/icons";
 import { formatPrice } from "@/lib/pricing";
 import { useVoucherStore } from "@/store/voucher.store";
-import { discountFor, findVoucher, validateVoucher } from "@/services/voucher.service";
+import { useBranchStore } from "@/store/branch.store";
+import { useAuthStore } from "@/store/auth.store";
+import { useModalDismiss } from "@/hooks/use-modal-dismiss";
+import { toast } from "@/store/toast.store";
+import {
+  applyVoucherCode,
+  discountFor,
+  fetchAvailableVouchers,
+  findVoucher,
+  validateVoucher,
+} from "@/services/voucher.service";
 import { VoucherList } from "./voucher-list";
 
 function TicketIcon() {
@@ -16,50 +29,124 @@ function TicketIcon() {
   );
 }
 
-/** Voucher entry for the cart summary. Re-validates the applied code against the
- *  current subtotal every render so removing items can't keep a no-longer-valid code. */
-export function VoucherSection({ subtotal, currency = "VND" }: { subtotal: number; currency?: string }) {
+export function VoucherSection({
+  subtotal,
+  currency = "VND",
+  cartSlugs,
+}: {
+  subtotal: number;
+  currency?: string;
+  cartSlugs?: string[];
+}) {
   const appliedCode = useVoucherStore((s) => s.appliedCode);
+  const appliedVoucher = useVoucherStore((s) => s.appliedVoucher);
   const apply = useVoucherStore((s) => s.apply);
   const clear = useVoucherStore((s) => s.clear);
+  const branchId = useBranchStore((s) => s.selectedBranchId) ?? undefined;
+  const token = useAuthStore((s) => s.token);
+  const customerId = useAuthStore((s) => s.user?.id) ?? undefined;
 
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [showList, setShowList] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
 
-  const voucher = appliedCode ? findVoucher(appliedCode) : undefined;
-  const check = voucher ? validateVoucher(voucher, subtotal) : null;
-  const discount = voucher ? discountFor(voucher, subtotal) : 0;
+  // Lazy: only fetch when the popup opens.
+  // customerId in key ensures a fresh fetch after login/logout (different cache per session).
+  const { data: vouchers = [], isLoading: listLoading } = useQuery({
+    queryKey: ["vouchers", customerId ?? null],
+    queryFn: () => fetchAvailableVouchers(customerId),
+    staleTime: 5 * 60_000,
+    enabled: showPopup,
+  });
 
-  const onApply = (raw: string) => {
+  useModalDismiss(showPopup, () => setShowPopup(false));
+
+  const ctx = { cartSlugs, branchId, customerId };
+  const check = appliedVoucher ? validateVoucher(appliedVoucher, subtotal, ctx) : null;
+  const discount = appliedVoucher ? discountFor(appliedVoucher, subtotal, ctx) : 0;
+
+  // ── Auto-clear: product / branch / subtotal scope ────────────────────────
+  // requiresAuth/guestsOnly vouchers are skipped here — the auth-change effect
+  // below handles them with a better message and avoids showing two toasts.
+  useEffect(() => {
+    if (!appliedVoucher || check?.ok !== false) return;
+    if (appliedVoucher.requiresAuth || appliedVoucher.guestsOnly) return;
+    const code = appliedVoucher.code;
+    const reason = check.reason ?? "không còn áp dụng được";
+    clear();
+    toast.info(`Đã gỡ mã ${code}: ${reason}`);
+  }, [appliedVoucher, check?.ok, check?.reason, clear]);
+
+  // ── Auto-clear: auth change (customer-scope vouchers) ───────────────────
+  const prevToken = useRef(token);
+  useEffect(() => {
+    if (prevToken.current === token) return;
+    prevToken.current = token;
+    if (!appliedVoucher) return;
+    const code = appliedVoucher.code;
+    clear();
+    toast.info(`Đã gỡ mã ${code}: vui lòng áp dụng lại sau khi đổi tài khoản`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // Apply from manual input — checks cache first, then API for private codes.
+  const onApply = async (raw: string) => {
     const code = raw.trim();
     if (!code) return;
-    const v = findVoucher(code);
-    if (!v) {
-      setError("Mã không hợp lệ hoặc không tồn tại");
-      return;
-    }
-    const res = validateVoucher(v, subtotal);
-    if (!res.ok) {
-      setError(res.reason ?? "Không thể áp dụng mã này");
-      return;
-    }
-    apply(v.code);
-    setInput("");
+    setApplying(true);
     setError(null);
-    setShowList(false);
+
+    const cached = findVoucher(code, vouchers);
+    if (cached) {
+      const res = validateVoucher(cached, subtotal, ctx);
+      if (!res.ok) {
+        setError(res.reason ?? "Không thể áp dụng mã này");
+        setApplying(false);
+        return;
+      }
+      apply(cached);
+      setInput("");
+      setApplying(false);
+      return;
+    }
+
+    // Not in public list → validate via BE (private / customer-scoped code).
+    try {
+      const validated = await applyVoucherCode(code, subtotal, 0, customerId);
+      apply(validated);
+      setInput("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Mã không hợp lệ hoặc không tồn tại");
+    } finally {
+      setApplying(false);
+    }
   };
 
-  // Applied + still valid → success chip.
-  if (voucher && check?.ok) {
+  // Apply from popup — always calls BE validate so customer scope is checked server-side.
+  const onApplyFromPopup = async (code: string) => {
+    setApplying(true);
+    try {
+      const validated = await applyVoucherCode(code, subtotal, 0, customerId);
+      apply(validated);
+      setShowPopup(false);
+    } catch (e) {
+      toast.info(e instanceof Error ? e.message : "Mã không hợp lệ hoặc không thể áp dụng");
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  // ── Applied + still valid → success chip ─────────────────────────────────
+  if (appliedVoucher && check?.ok) {
     return (
       <div className="flex items-start justify-between gap-2 rounded-lg border border-(--theme-in-stock,#16a34a)/40 bg-(--theme-in-stock,#16a34a)/5 px-3 py-2.5">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-sm font-semibold">
-            <TicketIcon /> {voucher.code}
+            <TicketIcon /> {appliedVoucher.code}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {voucher.type === "shipping"
+            {appliedVoucher.type === "shipping"
               ? "Ưu đãi phí vận chuyển (áp dụng cho phí ship)"
               : `Đã giảm ${formatPrice(discount, currency)}`}
           </p>
@@ -76,59 +163,87 @@ export function VoucherSection({ subtotal, currency = "VND" }: { subtotal: numbe
   }
 
   return (
-    <div className="space-y-2">
-      {/* Applied earlier but no longer eligible (e.g. items removed). */}
-      {voucher && check && !check.ok && (
-        <div className="flex items-start justify-between gap-2 rounded-lg border border-(--theme-warning,#d97706)/40 bg-(--theme-warning,#d97706)/10 px-3 py-2 text-xs text-(--theme-warning,#b45309)">
-          <span>
-            Mã <b>{voucher.code}</b> chưa dùng được: {check.reason}.
-          </span>
-          <button type="button" onClick={clear} className="shrink-0 font-medium hover:underline">
-            Bỏ
-          </button>
+    <>
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              setError(null);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && !applying && void onApply(input)}
+            placeholder="Nhập mã giảm giá"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm uppercase placeholder:normal-case placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={() => void onApply(input)}
+            disabled={!input.trim() || applying}
+          >
+            {applying ? "Đang kiểm tra…" : "Áp dụng"}
+          </Button>
         </div>
-      )}
 
-      <div className="flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            setError(null);
-          }}
-          onKeyDown={(e) => e.key === "Enter" && onApply(input)}
-          placeholder="Nhập mã giảm giá"
-          className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm uppercase placeholder:normal-case placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-        />
-        <Button
-          size="sm"
-          variant="outline"
-          className="shrink-0"
-          onClick={() => onApply(input)}
-          disabled={!input.trim()}
+        {error && <p className="text-xs text-(--theme-out-of-stock,var(--destructive))">{error}</p>}
+
+        <button
+          type="button"
+          onClick={() => setShowPopup(true)}
+          className="text-xs font-medium text-primary hover:underline"
         >
-          Áp dụng
-        </Button>
+          Xem mã khả dụng
+        </button>
       </div>
 
-      {error && <p className="text-xs text-(--theme-out-of-stock,var(--destructive))">{error}</p>}
+      {/* Voucher picker popup */}
+      {showPopup &&
+        createPortal(
+          <div className="fixed inset-0 z-90 flex items-end justify-center p-0 sm:items-center sm:p-4">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setShowPopup(false)}
+              aria-hidden
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mã giảm giá khả dụng"
+              className="relative flex max-h-[90svh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl sm:rounded-2xl"
+            >
+              {/* Header */}
+              <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-5 py-4">
+                <h2 className="text-base font-semibold">Mã giảm giá</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowPopup(false)}
+                  aria-label="Đóng"
+                  className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
 
-      <button
-        type="button"
-        onClick={() => setShowList((s) => !s)}
-        className="text-xs font-medium text-primary hover:underline"
-      >
-        {showList ? "Ẩn mã khả dụng" : "Xem mã khả dụng"}
-      </button>
-
-      {showList && (
-        <VoucherList
-          subtotal={subtotal}
-          currency={currency}
-          appliedCode={appliedCode}
-          onApply={onApply}
-        />
-      )}
-    </div>
+              {/* Scrollable list */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <VoucherList
+                  vouchers={vouchers}
+                  isLoading={listLoading}
+                  subtotal={subtotal}
+                  currency={currency}
+                  cartSlugs={cartSlugs}
+                  branchId={branchId}
+                  appliedCode={appliedCode}
+                  onApply={onApplyFromPopup}
+                  isApplying={applying}
+                />
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }

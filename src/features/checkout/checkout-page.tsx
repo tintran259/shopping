@@ -14,7 +14,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useOrderStore } from "@/store/order.store";
 import { resolveDefaultBranch } from "@/services/branch.service";
 import { getDeliveryMethods, PICKUP_METHOD } from "@/services/shipping.service";
-import { discountFor, findVoucher, shippingDiscountFor } from "@/services/voucher.service";
+import { discountFor, shippingDiscountFor } from "@/services/voucher.service";
 import { newOrderId, placeOrder } from "@/services/order.service";
 import type { Branch } from "@/types/branch";
 import type { CartLine } from "@/store/cart.store";
@@ -33,6 +33,7 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
   const appliedCode = useVoucherStore((s) => s.appliedCode);
   const clearVoucher = useVoucherStore((s) => s.clear);
+  const appliedVoucher = useVoucherStore((s) => s.appliedVoucher);
   const addOrder = useOrderStore((s) => s.addOrder);
   const checkout = useCheckoutStore();
   const authUser = useAuthStore((s) => s.user);
@@ -90,7 +91,7 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
     : deliveryMethods.find((m) => m.id === checkout.shippingMethodId) ?? deliveryMethods[0];
   const shippingFee = shippingMethod.fee;
 
-  const voucher = appliedCode ? findVoucher(appliedCode) : undefined;
+  const voucher = appliedVoucher ?? undefined;
   const productDiscount = voucher ? discountFor(voucher, subtotal) : 0;
   const shippingDiscount = voucher ? shippingDiscountFor(voucher, subtotal, shippingFee) : 0;
   const total = Math.max(0, subtotal - productDiscount + shippingFee - shippingDiscount);

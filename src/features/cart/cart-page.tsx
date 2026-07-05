@@ -14,7 +14,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useLiveBranchStock } from "@/hooks/use-live-branch-stock";
 import { useBranchStore } from "@/store/branch.store";
 import { useVoucherStore } from "@/store/voucher.store";
-import { discountFor, findVoucher } from "@/services/voucher.service";
+import { discountFor } from "@/services/voucher.service";
 import type { CartLine } from "@/store/cart.store";
 
 const FREE_SHIP_THRESHOLD = 500_000;
@@ -22,7 +22,7 @@ const FREE_SHIP_THRESHOLD = 500_000;
 export function CartPage() {
   const { lines, ready, setQuantity, removeLine, removeMany, clear } = useCart();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
-  const appliedCode = useVoucherStore((s) => s.appliedCode);
+  const appliedVoucher = useVoucherStore((s) => s.appliedVoucher);
 
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRemoveOos, setConfirmRemoveOos] = useState(false);
@@ -94,7 +94,7 @@ export function CartPage() {
   const freeShipLeft = Math.max(0, FREE_SHIP_THRESHOLD - subtotal);
   const currency = lines[0]?.currency ?? "VND";
 
-  const voucher = appliedCode ? findVoucher(appliedCode) : undefined;
+  const voucher = appliedVoucher ?? undefined;
   const voucherDiscount = voucher ? discountFor(voucher, subtotal) : 0;
   const total = Math.max(0, subtotal - voucherDiscount);
   // Informational only — NOT subtracted again (subtotal already uses sale prices).
@@ -189,7 +189,11 @@ export function CartPage() {
 
         {/* Voucher */}
         <div className="mt-4 border-t border-border pt-4">
-          <VoucherSection subtotal={subtotal} currency={currency} />
+          <VoucherSection
+            subtotal={subtotal}
+            currency={currency}
+            cartSlugs={slugs}
+          />
         </div>
 
         {subtotal > 0 && (
