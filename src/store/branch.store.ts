@@ -6,6 +6,8 @@ interface BranchState {
   selectedBranchId: string | null;
   select: (id: string) => void;
   clear: () => void;
+  _hasHydrated: boolean;
+  _setHasHydrated: (v: boolean) => void;
 }
 
 /**
@@ -22,6 +24,8 @@ export const useBranchStore = create<BranchState>()(
       selectedBranchId: null,
       select: (id) => set({ selectedBranchId: id }),
       clear: () => set({ selectedBranchId: null }),
+      _hasHydrated: false,
+      _setHasHydrated: (v) => set({ _hasHydrated: v }),
     }),
     {
       name: "branch",
@@ -29,6 +33,9 @@ export const useBranchStore = create<BranchState>()(
       // it isn't sent as `branchId` (BE rejects non-UUID → empty list).
       version: 1,
       migrate: () => ({ selectedBranchId: null }) as Partial<BranchState>,
+      onRehydrateStorage: () => (state) => {
+        state?._setHasHydrated(true);
+      },
     },
   ),
 );

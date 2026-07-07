@@ -45,6 +45,7 @@ export function VoucherSection({
   const branchId = useBranchStore((s) => s.selectedBranchId) ?? undefined;
   const token = useAuthStore((s) => s.token);
   const customerId = useAuthStore((s) => s.user?.id) ?? undefined;
+  const isAuthReady = useAuthStore((s) => s._hasHydrated);
 
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -53,11 +54,13 @@ export function VoucherSection({
 
   // Lazy: only fetch when the popup opens.
   // customerId in key ensures a fresh fetch after login/logout (different cache per session).
+  // Shares cache with CartPage (same key). enabled: isAuthReady ensures we never fire a
+  // guest fetch that gets immediately replaced once the persisted token is restored.
   const { data: vouchers = [], isLoading: listLoading } = useQuery({
     queryKey: ["vouchers", customerId ?? null],
     queryFn: () => fetchAvailableVouchers(customerId),
     staleTime: 5 * 60_000,
-    enabled: showPopup,
+    enabled: isAuthReady,
   });
 
   useModalDismiss(showPopup, () => setShowPopup(false));
@@ -66,12 +69,15 @@ export function VoucherSection({
   const check = appliedVoucher ? validateVoucher(appliedVoucher, subtotal, ctx) : null;
   const discount = appliedVoucher ? discountFor(appliedVoucher, subtotal, ctx) : 0;
 
-  // ── Auto-clear: product / branch / subtotal scope ────────────────────────
-  // requiresAuth/guestsOnly vouchers are skipped here — the auth-change effect
-  // below handles them with a better message and avoids showing two toasts.
+  // ── Auto-clear: product / branch / subtotal / expiry scope ─────────────
+  // Skip auth-scope failures only — the token-change effect below handles those
+  // with a clearer message and prevents a double toast on logout.
   useEffect(() => {
     if (!appliedVoucher || check?.ok !== false) return;
-    if (appliedVoucher.requiresAuth || appliedVoucher.guestsOnly) return;
+    const isAuthReason =
+      check.reason === "Yêu cầu đăng nhập để sử dụng mã này" ||
+      check.reason === "Chỉ áp dụng cho khách vãng lai (không cần tài khoản)";
+    if (isAuthReason) return;
     const code = appliedVoucher.code;
     const reason = check.reason ?? "không còn áp dụng được";
     clear();
@@ -90,7 +96,28 @@ export function VoucherSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Apply from manual input — checks cache first, then API for private codes.
+  // Apply from popup — local pre-check first for immediate feedback, then BE for limit check.
+  const onApplyFromPopup = async (code: string) => {
+    const v = findVoucher(code, vouchers);
+    if (!v) return;
+    const res = validateVoucher(v, subtotal, ctx);
+    if (!res.ok) {
+      toast.info(res.reason ?? "Mã không thể áp dụng");
+      return;
+    }
+    setApplying(true);
+    try {
+      const validated = await applyVoucherCode(code, subtotal, 0, customerId, branchId, cartSlugs);
+      apply(validated);
+      setShowPopup(false);
+    } catch (e) {
+      toast.info(e instanceof Error ? e.message : "Mã không thể áp dụng");
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  // Apply from manual input — local pre-check if code is in list, then always calls BE to verify limit.
   const onApply = async (raw: string) => {
     const code = raw.trim();
     if (!code) return;
@@ -105,33 +132,15 @@ export function VoucherSection({
         setApplying(false);
         return;
       }
-      apply(cached);
-      setInput("");
-      setApplying(false);
-      return;
     }
 
-    // Not in public list → validate via BE (private / customer-scoped code).
+    // Always call BE — verifies usage limits and validates private codes not in list.
     try {
-      const validated = await applyVoucherCode(code, subtotal, 0, customerId);
+      const validated = await applyVoucherCode(code, subtotal, 0, customerId, branchId, cartSlugs);
       apply(validated);
       setInput("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Mã không hợp lệ hoặc không tồn tại");
-    } finally {
-      setApplying(false);
-    }
-  };
-
-  // Apply from popup — always calls BE validate so customer scope is checked server-side.
-  const onApplyFromPopup = async (code: string) => {
-    setApplying(true);
-    try {
-      const validated = await applyVoucherCode(code, subtotal, 0, customerId);
-      apply(validated);
-      setShowPopup(false);
-    } catch (e) {
-      toast.info(e instanceof Error ? e.message : "Mã không hợp lệ hoặc không thể áp dụng");
     } finally {
       setApplying(false);
     }
@@ -235,6 +244,7 @@ export function VoucherSection({
                   currency={currency}
                   cartSlugs={cartSlugs}
                   branchId={branchId}
+                  customerId={customerId}
                   appliedCode={appliedCode}
                   onApply={onApplyFromPopup}
                   isApplying={applying}

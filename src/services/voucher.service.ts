@@ -104,21 +104,31 @@ export async function fetchAvailableVouchers(customerId?: string): Promise<Vouch
   return data.map(toVoucher);
 }
 
-/** Validate a code server-side and return the full Voucher object + computed discount.
- *  Throws with the BE's Vietnamese error message on failure. */
+/** Check a voucher code server-side (POST /vouchers/check) — verifies usage limits
+ *  in addition to all scoping rules. Returns the full Voucher + computed discount.
+ *  Throws with the BE's error message on failure. */
 export async function applyVoucherCode(
   code: string,
   subtotal: number,
   shippingFee = 0,
   customerId?: string,
+  branchId?: string,
+  productSlugs?: string[],
 ): Promise<Voucher & { discount: number }> {
-  const qs = new URLSearchParams({
+  const body: Record<string, unknown> = {
     code: code.trim().toUpperCase(),
-    subtotal: String(subtotal),
-    shippingFee: String(shippingFee),
+    subtotal,
+    shippingFee,
+  };
+  if (customerId) body.customerId = customerId;
+  if (branchId) body.branchId = branchId;
+  if (productSlugs?.length) body.productSlugs = productSlugs;
+
+  const res = await fetch(`${API}/vouchers/check`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-  if (customerId) qs.set("customerId", customerId);
-  const res = await fetch(`${API}/vouchers/validate?${qs}`);
   if (!res.ok) {
     let msg = "Mã không hợp lệ hoặc không thể áp dụng";
     try {
@@ -174,7 +184,10 @@ export function validateVoucher(
   if (v.minSubtotal && subtotal < v.minSubtotal) {
     return { ok: false, reason: `Đơn tối thiểu ${formatPrice(v.minSubtotal)}` };
   }
-  if (ctx.cartSlugs && v.applicableProducts?.length) {
+  if (v.applicableProducts?.length) {
+    if (!ctx.cartSlugs?.length) {
+      return { ok: false, reason: "Giỏ hàng không có sản phẩm áp dụng mã này" };
+    }
     const slugSet = new Set(ctx.cartSlugs);
     const hasRequired = v.applicableProducts.some((p) => slugSet.has(p.slug));
     if (!hasRequired) {
@@ -182,7 +195,10 @@ export function validateVoucher(
       return { ok: false, reason: `Chỉ áp dụng cho sản phẩm: ${names}` };
     }
   }
-  if (ctx.branchId && v.applicableBranches?.length) {
+  if (v.applicableBranches?.length) {
+    if (!ctx.branchId) {
+      return { ok: false, reason: "Vui lòng chọn chi nhánh để sử dụng mã này" };
+    }
     const hasRequired = v.applicableBranches.some((b) => b.id === ctx.branchId);
     if (!hasRequired) {
       const names = v.applicableBranches.map((b) => b.name).join(", ");

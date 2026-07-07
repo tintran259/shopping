@@ -12,10 +12,13 @@ interface AuthState {
   user: AuthUser | null;
   status: "idle" | "loading";
   error: string | null;
+  /** True once the persisted store has finished rehydrating from localStorage. */
+  _hasHydrated: boolean;
   login: (identifier: string, password: string) => Promise<boolean>;
   register: (input: RegisterPersonalInput) => Promise<boolean>;
   logout: () => void;
   clearError: () => void;
+  _setHasHydrated: (v: boolean) => void;
 }
 
 /**
@@ -30,6 +33,8 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       status: "idle",
       error: null,
+      _hasHydrated: false,
+      _setHasHydrated: (v) => set({ _hasHydrated: v }),
       login: async (identifier, password) => {
         set({ status: "loading", error: null });
         try {
@@ -58,6 +63,9 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "auth",
       partialize: (s) => ({ token: s.token, user: s.user }),
+      onRehydrateStorage: () => (state) => {
+        state?._setHasHydrated(true);
+      },
     },
   ),
 );

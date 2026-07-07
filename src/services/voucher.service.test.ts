@@ -6,6 +6,7 @@ import {
   shippingDiscountFor,
   amountToQualify,
   type Voucher,
+  type VoucherContext,
 } from "./voucher.service";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -54,8 +55,8 @@ const productVoucher: Voucher = {
   value: 20,
   description: "Giảm 20% combo A, B",
   applicableProducts: [
-    { id: "1", slug: "san-pham-a", name: "Sản phẩm A" },
-    { id: "2", slug: "san-pham-b", name: "Sản phẩm B" },
+    { id: "p-a", slug: "san-pham-a", name: "Sản phẩm A" },
+    { id: "p-b", slug: "san-pham-b", name: "Sản phẩm B" },
   ],
 };
 
@@ -74,17 +75,30 @@ const comboVoucher: Voucher = {
   type: "fixed",
   value: 100_000,
   description: "Sản phẩm A + Chi nhánh Q1",
-  applicableProducts: [{ id: "1", slug: "san-pham-a", name: "Sản phẩm A" }],
+  applicableProducts: [{ id: "p-a", slug: "san-pham-a", name: "Sản phẩm A" }],
   applicableBranches: [{ id: "branch-q1", name: "Chi nhánh Q1" }],
 };
 
-const customerVoucher: Voucher = {
+const requiresAuthVoucher: Voucher = {
   code: "VIP",
   label: "Khách VIP",
   type: "fixed",
   value: 100_000,
-  description: "Chỉ dành cho khách hàng được chỉ định",
+  description: "Chỉ dành cho khách đã đăng nhập",
   requiresAuth: true,
+};
+
+const requiresAuthWithProducts: Voucher = {
+  code: "VIP_COMBO",
+  label: "VIP + Sản phẩm",
+  type: "percent",
+  value: 20,
+  minSubtotal: 150_000,
+  maxDiscount: 100_000,
+  description: "Giảm 20% cho khách VIP có sản phẩm A tại Q1",
+  requiresAuth: true,
+  applicableProducts: [{ id: "p-a", slug: "san-pham-a", name: "Sản phẩm A" }],
+  applicableBranches: [{ id: "branch-q1", name: "Chi nhánh Q1" }],
 };
 
 const guestVoucher: Voucher = {
@@ -110,11 +124,14 @@ describe("findVoucher", () => {
   it("finds by exact match after normalisation", () => {
     expect(findVoucher("SHIP", list)?.type).toBe("shipping");
   });
+  it("handles empty list", () => {
+    expect(findVoucher("P10", [])).toBeUndefined();
+  });
 });
 
-// ── validateVoucher — basic ────────────────────────────────────────────────────
+// ── validateVoucher — expiry + minSubtotal ────────────────────────────────────
 
-describe("validateVoucher — basic", () => {
+describe("validateVoucher — expiry + minSubtotal", () => {
   it("rejects when subtotal is below minimum", () => {
     const r = validateVoucher(percent, 150_000);
     expect(r.ok).toBe(false);
@@ -127,42 +144,59 @@ describe("validateVoucher — basic", () => {
     expect(validateVoucher(percent, 500_000).ok).toBe(true);
   });
   it("rejects expired vouchers regardless of subtotal", () => {
-    expect(validateVoucher(expired, 999_000).ok).toBe(false);
+    const r = validateVoucher(expired, 999_000);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("Mã đã hết hạn");
   });
-  it("accepts vouchers without minSubtotal at any amount", () => {
-    expect(validateVoucher(productVoucher, 0).ok).toBe(true);
+  it("expiry is checked before minSubtotal", () => {
+    expect(validateVoucher(expired, 0).ok).toBe(false);
+  });
+  it("accepts vouchers with no minSubtotal (unrestricted voucher, full ctx)", () => {
+    expect(validateVoucher(percent, 0, { branchId: undefined, cartSlugs: [], customerId: undefined }).ok).toBe(false);
+    expect(validateVoucher(fixed, 400_000).ok).toBe(true);
   });
 });
 
-// ── validateVoucher — product scope ───────────────────────────────────────────
+// ── validateVoucher — product scope (fail-closed) ─────────────────────────────
 
-describe("validateVoucher — product scope (ctx.cartSlugs)", () => {
-  it("passes when cart contains at least one applicable product", () => {
-    const r = validateVoucher(productVoucher, 0, { cartSlugs: ["san-pham-a", "san-pham-x"] });
+describe("validateVoucher — product scope (fail-closed)", () => {
+  it("passes when cart contains at least one required product", () => {
+    const r = validateVoucher(productVoucher, 0, { cartSlugs: ["san-pham-a", "other"] });
     expect(r.ok).toBe(true);
   });
-  it("fails when no cart product matches", () => {
+  it("passes when only product B is in cart", () => {
+    expect(validateVoucher(productVoucher, 0, { cartSlugs: ["san-pham-b"] }).ok).toBe(true);
+  });
+  it("fails when no cart product matches required list", () => {
     const r = validateVoucher(productVoucher, 0, { cartSlugs: ["san-pham-x", "san-pham-y"] });
     expect(r.ok).toBe(false);
     expect(r.reason).toContain("Sản phẩm A");
     expect(r.reason).toContain("Sản phẩm B");
   });
-  it("fails with empty cart slugs", () => {
+  it("fails (fail-closed) when cartSlugs is empty — no products at all", () => {
     const r = validateVoucher(productVoucher, 0, { cartSlugs: [] });
     expect(r.ok).toBe(false);
+    expect(r.reason).toBe("Giỏ hàng không có sản phẩm áp dụng mã này");
   });
-  it("skips product check when cartSlugs is not provided", () => {
-    // undefined context → no scope check → eligible (ignoring other conditions)
-    expect(validateVoucher(productVoucher, 0).ok).toBe(true);
+  it("fails (fail-closed) when cartSlugs is not provided — treats as empty", () => {
+    const r = validateVoucher(productVoucher, 0, {});
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("Giỏ hàng không có sản phẩm áp dụng mã này");
+  });
+  it("fails (fail-closed) when no context at all", () => {
+    expect(validateVoucher(productVoucher, 0).ok).toBe(false);
   });
   it("passes any product when voucher has no product restriction", () => {
     expect(validateVoucher(percent, 200_000, { cartSlugs: ["random-slug"] }).ok).toBe(true);
   });
+  it("unrestricted voucher passes with empty cartSlugs", () => {
+    expect(validateVoucher(percent, 200_000, { cartSlugs: [] }).ok).toBe(true);
+  });
 });
 
-// ── validateVoucher — branch scope ───────────────────────────────────────────
+// ── validateVoucher — branch scope (fail-closed) ──────────────────────────────
 
-describe("validateVoucher — branch scope (ctx.branchId)", () => {
+describe("validateVoucher — branch scope (fail-closed)", () => {
   it("passes when branchId matches an applicable branch", () => {
     expect(validateVoucher(branchVoucher, 0, { branchId: "branch-q1" }).ok).toBe(true);
   });
@@ -171,33 +205,34 @@ describe("validateVoucher — branch scope (ctx.branchId)", () => {
     expect(r.ok).toBe(false);
     expect(r.reason).toContain("Chi nhánh Q1");
   });
-  it("skips branch check when branchId is not provided", () => {
-    expect(validateVoucher(branchVoucher, 0).ok).toBe(true);
+  it("fails (fail-closed) when branchId is not provided — no branch selected", () => {
+    const r = validateVoucher(branchVoucher, 0, {});
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("Vui lòng chọn chi nhánh để sử dụng mã này");
+  });
+  it("fails (fail-closed) when no context at all", () => {
+    expect(validateVoucher(branchVoucher, 0).ok).toBe(false);
   });
   it("passes any branch when voucher has no branch restriction", () => {
     expect(validateVoucher(percent, 200_000, { branchId: "any-branch" }).ok).toBe(true);
   });
+  it("unrestricted voucher passes without branchId", () => {
+    expect(validateVoucher(percent, 200_000).ok).toBe(true);
+  });
 });
 
-// ── validateVoucher — combined scopes ─────────────────────────────────────────
+// ── validateVoucher — product checked before branch ───────────────────────────
 
-describe("validateVoucher — combined product + branch scope", () => {
-  it("passes when both product and branch match", () => {
-    const r = validateVoucher(comboVoucher, 0, {
-      cartSlugs: ["san-pham-a"],
-      branchId: "branch-q1",
-    });
-    expect(r.ok).toBe(true);
-  });
-  it("fails on product mismatch even if branch matches", () => {
+describe("validateVoucher — check order: product before branch", () => {
+  it("reports product mismatch before branch mismatch", () => {
     const r = validateVoucher(comboVoucher, 0, {
       cartSlugs: ["other"],
-      branchId: "branch-q1",
+      branchId: "branch-q3",
     });
     expect(r.ok).toBe(false);
     expect(r.reason).toContain("Sản phẩm A");
   });
-  it("fails on branch mismatch even if product matches", () => {
+  it("reports branch mismatch when product matches but branch doesn't", () => {
     const r = validateVoucher(comboVoucher, 0, {
       cartSlugs: ["san-pham-a"],
       branchId: "branch-q3",
@@ -205,46 +240,157 @@ describe("validateVoucher — combined product + branch scope", () => {
     expect(r.ok).toBe(false);
     expect(r.reason).toContain("Chi nhánh Q1");
   });
+  it("passes when both product and branch match", () => {
+    expect(validateVoucher(comboVoucher, 0, {
+      cartSlugs: ["san-pham-a"],
+      branchId: "branch-q1",
+    }).ok).toBe(true);
+  });
+  it("reports missing-product over missing-branch", () => {
+    const r = validateVoucher(comboVoucher, 0, { cartSlugs: [] });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("Giỏ hàng không có sản phẩm áp dụng mã này");
+  });
 });
 
-// ── validateVoucher — customer scope ─────────────────────────────────────────
+// ── validateVoucher — requiresAuth (customers scope) ─────────────────────────
 
-describe("validateVoucher — customer scope (ctx.customerId)", () => {
-  it("rejects when requiresAuth and no context provided (guest)", () => {
-    const r = validateVoucher(customerVoucher, 0);
+describe("validateVoucher — requiresAuth", () => {
+  it("passes when logged-in (customerId provided)", () => {
+    expect(validateVoucher(requiresAuthVoucher, 0, { customerId: "cust-abc" }).ok).toBe(true);
+  });
+  it("fails when guest (no customerId)", () => {
+    const r = validateVoucher(requiresAuthVoucher, 0, {});
     expect(r.ok).toBe(false);
-    expect(r.reason).toContain("đăng nhập");
+    expect(r.reason).toBe("Yêu cầu đăng nhập để sử dụng mã này");
   });
-  it("rejects when requiresAuth and customerId is undefined", () => {
-    expect(validateVoucher(customerVoucher, 0, { customerId: undefined }).ok).toBe(false);
+  it("fails when no context", () => {
+    expect(validateVoucher(requiresAuthVoucher, 0).ok).toBe(false);
   });
-  it("passes when requiresAuth and customerId is provided", () => {
-    expect(validateVoucher(customerVoucher, 0, { customerId: "cust-abc" }).ok).toBe(true);
-  });
-  it("public vouchers pass without customerId", () => {
+  it("unrestricted vouchers pass without customerId", () => {
     expect(validateVoucher(percent, 200_000).ok).toBe(true);
   });
-  it("public vouchers pass with customerId (no interference)", () => {
+  it("unrestricted vouchers pass with customerId", () => {
     expect(validateVoucher(percent, 200_000, { customerId: "cust-abc" }).ok).toBe(true);
   });
 });
 
-// ── validateVoucher — guests-only scope ──────────────────────────────────────
+// ── validateVoucher — guestsOnly scope ───────────────────────────────────────
 
-describe("validateVoucher — guests-only scope (ctx.customerId)", () => {
+describe("validateVoucher — guestsOnly", () => {
   it("passes for guest (no customerId)", () => {
     expect(validateVoucher(guestVoucher, 0).ok).toBe(true);
   });
   it("passes when ctx.customerId is undefined", () => {
     expect(validateVoucher(guestVoucher, 0, { customerId: undefined }).ok).toBe(true);
   });
-  it("rejects when logged-in user tries to apply", () => {
+  it("fails when logged-in user tries to apply", () => {
     const r = validateVoucher(guestVoucher, 0, { customerId: "cust-abc" });
     expect(r.ok).toBe(false);
-    expect(r.reason).toContain("khách vãng lai");
+    expect(r.reason).toBe("Chỉ áp dụng cho khách vãng lai (không cần tài khoản)");
   });
-  it("non-guestsOnly vouchers are unaffected by customerId presence", () => {
+  it("non-guestsOnly vouchers are unaffected by customerId", () => {
     expect(validateVoucher(percent, 200_000, { customerId: "cust-abc" }).ok).toBe(true);
+  });
+});
+
+// ── validateVoucher — requiresAuth + product + branch (realistic voucher) ─────
+
+describe("validateVoucher — requiresAuth + product + branch (e.g. FREESHIP_COMBO_3)", () => {
+  const fullCtx: VoucherContext = {
+    customerId: "cust-abc",
+    cartSlugs: ["san-pham-a", "other"],
+    branchId: "branch-q1",
+  };
+
+  it("passes when all conditions met", () => {
+    expect(validateVoucher(requiresAuthWithProducts, 150_000, fullCtx).ok).toBe(true);
+  });
+  it("fails when subtotal below minimum (all else met)", () => {
+    const r = validateVoucher(requiresAuthWithProducts, 100_000, fullCtx);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("tối thiểu");
+  });
+  it("fails when product not in cart (all else met)", () => {
+    const r = validateVoucher(requiresAuthWithProducts, 150_000, {
+      ...fullCtx,
+      cartSlugs: ["other-product"],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("Sản phẩm A");
+  });
+  it("fails (fail-closed) when cartSlugs missing (all else met)", () => {
+    const r = validateVoucher(requiresAuthWithProducts, 150_000, {
+      ...fullCtx,
+      cartSlugs: undefined,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("Giỏ hàng không có sản phẩm áp dụng mã này");
+  });
+  it("fails when branch does not match (all else met)", () => {
+    const r = validateVoucher(requiresAuthWithProducts, 150_000, {
+      ...fullCtx,
+      branchId: "branch-q7",
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("Chi nhánh Q1");
+  });
+  it("fails (fail-closed) when branchId missing (all else met)", () => {
+    const r = validateVoucher(requiresAuthWithProducts, 150_000, {
+      ...fullCtx,
+      branchId: undefined,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("Vui lòng chọn chi nhánh để sử dụng mã này");
+  });
+  it("fails when guest (no customerId, all else met)", () => {
+    const r = validateVoucher(requiresAuthWithProducts, 150_000, {
+      ...fullCtx,
+      customerId: undefined,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("Yêu cầu đăng nhập để sử dụng mã này");
+  });
+});
+
+// ── auto-clear reason classification ─────────────────────────────────────────
+// These strings are used by VoucherSection to decide which useEffect clears
+// the applied voucher (scope-change vs auth-change). They must stay in sync.
+
+describe("validateVoucher — reason strings for auto-clear classification", () => {
+  const AUTH_REASONS = [
+    "Yêu cầu đăng nhập để sử dụng mã này",
+    "Chỉ áp dụng cho khách vãng lai (không cần tài khoản)",
+  ];
+
+  it("requiresAuth failure produces an auth reason (scope-change effect should skip)", () => {
+    const r = validateVoucher(requiresAuthVoucher, 0, {});
+    expect(AUTH_REASONS).toContain(r.reason);
+  });
+  it("guestsOnly failure produces an auth reason (scope-change effect should skip)", () => {
+    const r = validateVoucher(guestVoucher, 0, { customerId: "cust" });
+    expect(AUTH_REASONS).toContain(r.reason);
+  });
+  it("product removal produces a non-auth reason (scope-change effect should clear)", () => {
+    const r = validateVoucher(productVoucher, 0, { cartSlugs: [] });
+    expect(AUTH_REASONS).not.toContain(r.reason);
+  });
+  it("branch change produces a non-auth reason (scope-change effect should clear)", () => {
+    const r = validateVoucher(branchVoucher, 0, { branchId: "wrong" });
+    expect(AUTH_REASONS).not.toContain(r.reason);
+  });
+  it("subtotal drop produces a non-auth reason (scope-change effect should clear)", () => {
+    const r = validateVoucher(percent, 100_000);
+    expect(AUTH_REASONS).not.toContain(r.reason);
+  });
+  it("requiresAuth + product removed → product reason, not auth reason", () => {
+    const r = validateVoucher(requiresAuthWithProducts, 150_000, {
+      customerId: "cust-abc",
+      cartSlugs: [],
+      branchId: "branch-q1",
+    });
+    expect(r.ok).toBe(false);
+    expect(AUTH_REASONS).not.toContain(r.reason);
   });
 });
 
@@ -270,15 +416,43 @@ describe("discountFor", () => {
   it("returns 0 when below minimum subtotal", () => {
     expect(discountFor(percent, 100_000)).toBe(0);
   });
-  it("returns 0 when product scope fails", () => {
+  it("returns 0 when product scope fails — no matching slug", () => {
     expect(discountFor(productVoucher, 500_000, { cartSlugs: ["other"] })).toBe(0);
   });
+  it("returns 0 (fail-closed) when product scope fails — empty cartSlugs", () => {
+    expect(discountFor(productVoucher, 500_000, { cartSlugs: [] })).toBe(0);
+  });
+  it("returns 0 (fail-closed) when product voucher has no ctx", () => {
+    expect(discountFor(productVoucher, 500_000)).toBe(0);
+  });
   it("computes correctly when product scope passes", () => {
-    // productVoucher: 20%, no cap, no minSubtotal
     expect(discountFor(productVoucher, 500_000, { cartSlugs: ["san-pham-a"] })).toBe(100_000);
   });
-  it("returns 0 when branch scope fails", () => {
+  it("returns 0 when branch scope fails — wrong branch", () => {
     expect(discountFor(branchVoucher, 500_000, { branchId: "other-branch" })).toBe(0);
+  });
+  it("returns 0 (fail-closed) when branch voucher has no branchId in ctx", () => {
+    expect(discountFor(branchVoucher, 500_000, {})).toBe(0);
+  });
+  it("returns 0 (fail-closed) when branch voucher has no ctx", () => {
+    expect(discountFor(branchVoucher, 500_000)).toBe(0);
+  });
+  it("computes full combo voucher (product + branch + auth all satisfied)", () => {
+    expect(
+      discountFor(requiresAuthWithProducts, 600_000, {
+        customerId: "cust-abc",
+        cartSlugs: ["san-pham-a"],
+        branchId: "branch-q1",
+      }),
+    ).toBe(100_000); // 20% of 600K = 120K, capped at maxDiscount 100K
+  });
+  it("returns 0 for combo voucher when auth missing (even if branch + product match)", () => {
+    expect(
+      discountFor(requiresAuthWithProducts, 600_000, {
+        cartSlugs: ["san-pham-a"],
+        branchId: "branch-q1",
+      }),
+    ).toBe(0);
   });
 });
 
@@ -300,7 +474,7 @@ describe("shippingDiscountFor", () => {
   it("returns 0 for pickup orders (fee = 0)", () => {
     expect(shippingDiscountFor(ship, 200_000, 0)).toBe(0);
   });
-  it("respects ctx — returns 0 when branch scope fails", () => {
+  it("respects branch scope — fails when branch doesn't match", () => {
     const shipBranch: Voucher = {
       ...ship,
       code: "SHIPBRANCH",
@@ -308,6 +482,14 @@ describe("shippingDiscountFor", () => {
     };
     expect(shippingDiscountFor(shipBranch, 200_000, 30_000, { branchId: "other" })).toBe(0);
     expect(shippingDiscountFor(shipBranch, 200_000, 30_000, { branchId: "b1" })).toBe(30_000);
+  });
+  it("respects branch scope (fail-closed) — no branchId → 0", () => {
+    const shipBranch: Voucher = {
+      ...ship,
+      code: "SHIPBRANCH2",
+      applicableBranches: [{ id: "b1", name: "Q1" }],
+    };
+    expect(shippingDiscountFor(shipBranch, 200_000, 30_000, {})).toBe(0);
   });
 });
 
@@ -317,7 +499,7 @@ describe("amountToQualify", () => {
   it("returns the gap to the minimum when subtotal is below", () => {
     expect(amountToQualify(percent, 150_000)).toBe(50_000);
   });
-  it("returns 0 when subtotal meets the minimum", () => {
+  it("returns 0 when subtotal meets the minimum exactly", () => {
     expect(amountToQualify(percent, 200_000)).toBe(0);
   });
   it("returns 0 when subtotal exceeds the minimum", () => {
@@ -325,5 +507,11 @@ describe("amountToQualify", () => {
   });
   it("returns 0 when voucher has no minSubtotal", () => {
     expect(amountToQualify(productVoucher, 0)).toBe(0);
+  });
+  it("returns 0 when voucher has no minSubtotal, any subtotal", () => {
+    expect(amountToQualify(productVoucher, 999_999)).toBe(0);
+  });
+  it("handles edge case: subtotal = 0, minSubtotal > 0", () => {
+    expect(amountToQualify(percent, 0)).toBe(200_000);
   });
 });

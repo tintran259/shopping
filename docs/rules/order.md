@@ -3,7 +3,7 @@
 > Binding detail for the buy flow end-to-end: cart → checkout → order → inventory →
 > tracking → cancel. Read this before touching `features/checkout`, `features/orders`,
 > `features/account`, `order.service`, `cart.service`, `use-cart`, or the BE
-> `orders` / `cart` / `branches` modules.
+> `orders` / `cart` / `branches` / `vouchers` modules.
 >
 > **Golden rule:** the BE is the source of truth for money and stock. The FE computes
 > totals/availability for UX only; the BE **recomputes** everything at order time.
@@ -159,6 +159,177 @@ Each order tracks where its stock sits via **`order.stockStatus`** (idempotency 
   no "claim guest order on login" flow yet.
 - `order.service` maps the BE order → `OrderRecord`: status → VI label, `paymentMethodCode`
   → payment label, shippingAddress snapshot → address string.
+
+## Voucher
+
+### Architecture
+
+```
+FE (client-side)          BE (server-side)
+─────────────────         ──────────────────────────────
+validateVoucher()    →    POST /vouchers/check
+  • expiry                  • same checks + usage limits
+  • minSubtotal             • perCustomerLimit (DB query)
+  • products (slugs)        • usageLimit (usedCount)
+  • branches (id)           • customerScope: GUESTS/USERS/SPECIFIC
+  • requiresAuth            • fail-closed on every dimension
+  • guestsOnly
+```
+
+The FE check is **display-only** (enable/disable button, live hints). The BE check is the
+authoritative gate that also enforces usage limits (counter in DB). Never skip the BE call
+just because FE already validated.
+
+### Key invariant: fail-closed on both sides
+
+Both `validateVoucher` (FE) and `evaluate` (BE) are **fail-closed**:
+
+| Condition | FE ctx missing | BE ctx missing |
+|---|---|---|
+| `applicableProducts` | → `ok: false` ("Giỏ hàng không có sản phẩm…") | → 400 |
+| `applicableBranches` | → `ok: false` ("Vui lòng chọn chi nhánh…") | → 400 |
+| `requiresAuth` | → `ok: false` | → 400 |
+
+If you relax either side to fail-open, the button will be enabled but the apply call will
+fail — users see a confusing "Mã không thể áp dụng" toast with no explanation.
+
+### Product scope — slugs, not IDs
+
+The storefront uses **product slugs** (not UUIDs) for the product scope check, on both FE
+and BE. This is because logged-in users' `CartLine.id` is the cart-line UUID (from the
+`cart_lines` table), not the product UUID, making UUID-based matching unreliable across
+auth modes.
+
+- **FE**: `validateVoucher` uses `ctx.cartSlugs` (from `lines.map(l => l.slug)`) vs
+  `v.applicableProducts[].slug`.
+- **BE** (`POST /vouchers/check`, `POST /orders/checkout`): receives `productSlugs: string[]`
+  and compares against `voucher.products[].slug`.
+- `CartLine.slug` is always correct for both guests (Zustand store) and logged-in users
+  (BE cart API).
+
+### Apply flow
+
+```
+User clicks "Áp dụng"
+  └─ onApplyFromPopup(code)
+       1. findVoucher(code, vouchers)           // already fetched, cached
+       2. validateVoucher(v, subtotal, ctx)     // FE pre-check: immediate UX feedback
+          ├─ fail → toast.info(reason), return
+          └─ ok  →
+       3. applyVoucherCode(code, subtotal, 0,   // POST /vouchers/check
+                          customerId, branchId,
+                          cartSlugs)
+          ├─ 400 → toast.info(BE message)
+          └─ 200 → voucherStore.apply(validated)
+                   setShowPopup(false)
+```
+
+Manual input (`onApply`) follows the same path; the FE pre-check is skipped if the code is
+not in the cached list (BE call always runs).
+
+### VoucherContext (`src/services/voucher.service.ts`)
+
+```ts
+interface VoucherContext {
+  cartSlugs?: string[];   // from lines.map(l => l.slug)
+  branchId?: string;      // from useBranchStore(s => s.selectedBranchId)
+  customerId?: string;    // from useAuthStore(s => s.user?.id)
+}
+```
+
+All three callers must pass a fully-populated context: `VoucherSection`, `CartPage`
+(`voucherCtx` for `discountFor`), and `VoucherList` (`validateVoucher` for button state).
+
+### Voucher list fetch — single fetch, no double-call
+
+Both `CartPage` and `VoucherSection` subscribe to the same React Query key:
+`["vouchers", customerId ?? null]`. React Query deduplicates to one network request.
+
+Both are gated on `isAuthReady` (`useAuthStore(s => s._hasHydrated)`): Zustand `persist`
+hydrates async from localStorage; without this guard, a guest fetch fires before the
+persisted token restores, and a second fetch fires after — causing a double-call and a
+brief flash of wrong voucher scope.
+
+### Auto-clear rules (VoucherSection)
+
+Two separate `useEffect`s manage auto-clear on applied vouchers:
+
+| Effect | Trigger | Condition | Action |
+|---|---|---|---|
+| **Scope-change** | `check?.ok`, `check?.reason` change | `ok = false` AND reason is NOT an auth reason | `clear()` + toast |
+| **Auth-change** | `token` changes | Always when token changes | `clear()` + toast |
+
+**Auth reasons** (scope-change effect skips these to prevent double toast on logout):
+- `"Yêu cầu đăng nhập để sử dụng mã này"`
+- `"Chỉ áp dụng cho khách vãng lai (không cần tài khoản)"`
+
+**Non-auth reasons** (scope-change effect fires for these even on `requiresAuth` vouchers):
+- Product removed from cart → `"Chỉ áp dụng cho sản phẩm: …"`
+- Branch changed away → `"Chỉ áp dụng tại chi nhánh: …"`
+- Subtotal dropped → `"Đơn tối thiểu …"`
+- Voucher expired → `"Mã đã hết hạn"`
+
+This means a `requiresAuth` voucher IS auto-cleared when its product/branch conditions
+stop being met. It is NOT auto-cleared by the scope-change effect on logout (the auth-change
+effect handles that, with a clearer message, to avoid two toasts firing).
+
+### Nearest-voucher banner (CartPage)
+
+The "Mua thêm X để nhận Y" banner only surfaces vouchers where **subtotal is the only
+missing condition** — branch and product restrictions must already be satisfied:
+
+```ts
+availableVouchers.filter(v => {
+  // customer scope
+  if (v.guestsOnly && customerId) return false;
+  if (v.requiresAuth && !customerId) return false;
+  // branch already OK
+  if (v.applicableBranches?.length && !v.applicableBranches.some(b => b.id === selectedBranchId)) return false;
+  // products already in cart
+  if (v.applicableProducts?.length && !v.applicableProducts.some(p => slugs.includes(p.slug))) return false;
+  // only hint when subtotal is the gap
+  return amountToQualify(v, subtotal) > 0;
+})
+```
+
+### BE endpoints
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/vouchers/available` | Public | List active vouchers for the picker. Pass `?customerId=` to include `SPECIFIC`-scope vouchers assigned to that customer. |
+| `POST` | `/vouchers/check` | Public | Validate code + compute discount. Verifies usage limits. Body: `{ code, subtotal, shippingFee?, branchId?, customerId?, productSlugs? }`. |
+| `GET` | `/vouchers/validate` | Public | Legacy GET validate (kept for tooling). Prefer `POST /check`. |
+
+### BE `evaluate()` check order
+
+1. Voucher exists and `isActive`
+2. `startsAt` / `endsAt` window
+3. `usageLimit` (global counter)
+4. `perCustomerLimit` (DB count per customer — requires `customerId`)
+5. `minSubtotal`
+6. `branches` restriction (fail-closed: no `branchId` sent → always reject)
+7. `customerScope`: GUESTS / USERS / SPECIFIC
+8. `products` restriction via **slugs** (fail-closed: empty `productSlugs` → reject)
+
+### Redemption lifecycle
+
+Vouchers are redeemed inside the order transaction (`orders.service → vouchers.service.redeem`):
+- `usedCount` is incremented and a `voucher_redemptions` row is created atomically.
+- On order cancellation, `unredeem` decrements `usedCount` and removes the row — freeing the
+  slot back for `perCustomerLimit` and `usageLimit`.
+
+### Gotchas
+
+- **Cart line ID vs product ID**: For logged-in users, `CartLine.id` is the cart-line UUID
+  (not the product UUID). Always use `CartLine.slug` for product scope checks.
+- **`discountFor` needs full ctx**: The function calls `validateVoucher` internally. Calling
+  it without ctx for a branch- or product-scoped voucher returns 0. Pass `voucherCtx`
+  everywhere (CartPage, VoucherSection, checkout OrderSummary).
+- **`requiresAuth` does not mean skip scope-change auto-clear**: product/branch removal still
+  clears `requiresAuth` vouchers. Only auth-reason failures are skipped (handled by the
+  auth-change effect).
+- **Branch store has `_hasHydrated`**: same pattern as auth store. Use it if gating any
+  branch-dependent query on hydration completion.
 
 ## Gotchas
 

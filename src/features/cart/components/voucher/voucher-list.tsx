@@ -62,6 +62,7 @@ export function VoucherList({
   currency,
   cartSlugs,
   branchId,
+  customerId,
   appliedCode,
   onApply,
   isApplying = false,
@@ -72,6 +73,7 @@ export function VoucherList({
   currency: string;
   cartSlugs?: string[];
   branchId?: string;
+  customerId?: string;
   appliedCode: string | null;
   onApply: (code: string) => void;
   isApplying?: boolean;
@@ -99,7 +101,7 @@ export function VoucherList({
   return (
     <ul className="space-y-2">
       {vouchers.map((v) => {
-        const check = validateVoucher(v, subtotal, { cartSlugs, branchId });
+        const check = validateVoucher(v, subtotal, { cartSlugs, branchId, customerId });
         const eligible = check.ok;
         const need = amountToQualify(v, subtotal);
         const applied = appliedCode === v.code;

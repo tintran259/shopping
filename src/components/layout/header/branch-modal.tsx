@@ -77,9 +77,8 @@ export function BranchModal({
                           onClose();
                         }}
                         aria-pressed={active}
-                        className={`flex w-full items-start gap-3 rounded-lg p-3 text-left transition ${
-                          active ? "bg-muted ring-1 ring-primary/30" : "hover:bg-muted"
-                        }`}
+                        className={`flex w-full items-start gap-3 rounded-lg p-3 text-left transition ${active ? "bg-muted ring-1 ring-primary/30" : "hover:bg-muted"
+                          }`}
                       >
                         <MapPinIcon className="mt-0.5 shrink-0 text-muted-foreground" />
                         <span className="min-w-0 flex-1">

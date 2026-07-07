@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -13,8 +14,13 @@ import { formatPrice } from "@/lib/pricing";
 import { useCart } from "@/hooks/use-cart";
 import { useLiveBranchStock } from "@/hooks/use-live-branch-stock";
 import { useBranchStore } from "@/store/branch.store";
+import { useAuthStore } from "@/store/auth.store";
 import { useVoucherStore } from "@/store/voucher.store";
-import { discountFor } from "@/services/voucher.service";
+import {
+  amountToQualify,
+  discountFor,
+  fetchAvailableVouchers,
+} from "@/services/voucher.service";
 import type { CartLine } from "@/store/cart.store";
 
 const FREE_SHIP_THRESHOLD = 500_000;
@@ -23,6 +29,17 @@ export function CartPage() {
   const { lines, ready, setQuantity, removeLine, removeMany, clear } = useCart();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
   const appliedVoucher = useVoucherStore((s) => s.appliedVoucher);
+  const customerId = useAuthStore((s) => s.user?.id) ?? undefined;
+  const isAuthReady = useAuthStore((s) => s._hasHydrated);
+
+  // Disabled until auth hydrates so we never fire a "guest" fetch that gets immediately
+  // superseded by a "logged-in" fetch once the persisted token is restored from localStorage.
+  const { data: availableVouchers = [] } = useQuery({
+    queryKey: ["vouchers", customerId ?? null],
+    queryFn: () => fetchAvailableVouchers(customerId),
+    staleTime: 5 * 60_000,
+    enabled: isAuthReady,
+  });
 
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRemoveOos, setConfirmRemoveOos] = useState(false);
@@ -94,8 +111,31 @@ export function CartPage() {
   const freeShipLeft = Math.max(0, FREE_SHIP_THRESHOLD - subtotal);
   const currency = lines[0]?.currency ?? "VND";
 
+  // Nearest voucher by minSubtotal gap — only vouchers where subtotal is the ONLY missing
+  // condition (branch + products already match) so the hint is actionable.
+  const nearest = availableVouchers
+    .filter((v) => {
+      if (v.guestsOnly && customerId) return false;
+      if (v.requiresAuth && !customerId) return false;
+      // Branch must already match (or voucher is unrestricted on branch).
+      if (v.applicableBranches?.length) {
+        if (!selectedBranchId || !v.applicableBranches.some((b) => b.id === selectedBranchId)) return false;
+      }
+      // Products must already be in cart (or voucher is unrestricted on products).
+      if (v.applicableProducts?.length) {
+        if (!slugs.length || !v.applicableProducts.some((p) => slugs.includes(p.slug))) return false;
+      }
+      return amountToQualify(v, subtotal) > 0;
+    })
+    .reduce<(typeof availableVouchers)[0] | null>(
+      (best, v) =>
+        !best || amountToQualify(v, subtotal) < amountToQualify(best, subtotal) ? v : best,
+      null,
+    );
+
   const voucher = appliedVoucher ?? undefined;
-  const voucherDiscount = voucher ? discountFor(voucher, subtotal) : 0;
+  const voucherCtx = { cartSlugs: slugs, branchId: selectedBranchId ?? undefined, customerId };
+  const voucherDiscount = voucher ? discountFor(voucher, subtotal, voucherCtx) : 0;
   const total = Math.max(0, subtotal - voucherDiscount);
   // Informational only — NOT subtracted again (subtotal already uses sale prices).
   const totalSaved = savings + voucherDiscount;
@@ -198,7 +238,22 @@ export function CartPage() {
 
         {subtotal > 0 && (
           <p className="mt-3 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-            {freeShipLeft > 0 ? (
+            {nearest ? (
+              <>
+                Mua thêm{" "}
+                <span className="font-semibold text-foreground">
+                  {formatPrice(amountToQualify(nearest, subtotal), currency)}
+                </span>{" "}
+                {nearest.type === "shipping" ? (
+                  "để được miễn phí vận chuyển."
+                ) : (
+                  <>
+                    để nhận{" "}
+                    <span className="font-semibold text-foreground">{nearest.label}</span>.
+                  </>
+                )}
+              </>
+            ) : freeShipLeft > 0 ? (
               <>
                 Mua thêm{" "}
                 <span className="font-semibold text-foreground">
