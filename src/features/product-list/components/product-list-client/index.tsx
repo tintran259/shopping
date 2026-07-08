@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import { getProducts } from "@/services/product.service";
 import { resolveDefaultBranch } from "@/services/branch.service";
@@ -24,10 +25,12 @@ export function ProductListClient({
   category,
   title,
   branches,
+  categoryImage,
 }: {
   category: string;
   title: string;
   branches: Branch[];
+  categoryImage?: string | null;
 }) {
   const searchParams = useSearchParams();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
@@ -73,15 +76,42 @@ export function ProductListClient({
   return (
     <>
       <header className="mb-8">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Bộ sưu tập
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-(--theme-heading-color,inherit) sm:text-4xl">
-          {title}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {loading ? "Đang tải…" : `${pagination.total} sản phẩm · giao nhanh toàn quốc`}
-        </p>
+        {categoryImage ? (
+          <div className="relative mb-6 aspect-3/1 w-full overflow-hidden rounded-2xl">
+            <Image
+              src={categoryImage}
+              alt={title}
+              fill
+              priority
+              className="object-cover"
+              sizes="(max-width: 1280px) 100vw, 1280px"
+            />
+            <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/10 to-transparent" />
+            <div className="absolute bottom-0 left-0 p-6">
+              <p className="text-xs font-medium uppercase tracking-wide text-white/70">
+                Bộ sưu tập
+              </p>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                {title}
+              </h1>
+              <p className="mt-1.5 text-sm text-white/70">
+                {loading ? "Đang tải…" : `${pagination.total} sản phẩm · giao nhanh toàn quốc`}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Bộ sưu tập
+            </p>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-(--theme-heading-color,inherit) sm:text-4xl">
+              {title}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {loading ? "Đang tải…" : `${pagination.total} sản phẩm · giao nhanh toàn quốc`}
+            </p>
+          </>
+        )}
       </header>
 
       <div className="lg:grid lg:grid-cols-[16rem_1fr] lg:gap-10">

@@ -1,5 +1,6 @@
 import { CmsSlot } from "@/cms/renderer/cms-slot";
 import { getBranches } from "@/services/branch.service";
+import { getCategoryBySlug } from "@/services/category.service";
 import { ProductListClient } from "./components/product-list-client";
 
 /**
@@ -9,11 +10,16 @@ import { ProductListClient } from "./components/product-list-client";
  * synchronously on first render — avoiding a branchless → branch double fetch.
  */
 export async function ProductListPage({ title, category }: { title: string; category: string }) {
-  const branches = await getBranches();
+  const [branches, cat] = await Promise.all([getBranches(), getCategoryBySlug(category)]);
   return (
     <main id="plp-top" className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:py-10">
       <CmsSlot slot="plp-top" />
-      <ProductListClient category={category} title={title} branches={branches} />
+      <ProductListClient
+        category={category}
+        title={cat?.name ?? title}
+        branches={branches}
+        categoryImage={cat?.imageUrl ?? null}
+      />
       <CmsSlot slot="plp-bottom" />
     </main>
   );

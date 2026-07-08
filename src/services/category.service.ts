@@ -30,6 +30,14 @@ export async function getCategories(): Promise<CategoryRef[]> {
   return (await fetchCategories()).map((c) => ({ id: c.id, slug: c.slug, name: c.name }));
 }
 
+/** Single category by slug — reuses the same cached flat list. */
+export async function getCategoryBySlug(
+  slug: string,
+): Promise<ApiCategory | null> {
+  const cats = await fetchCategories();
+  return cats.find((c) => c.slug === slug) ?? null;
+}
+
 /** Build the unified nav tree from the flat category list (parentId → children). */
 export async function getCategoryTreeNodes(): Promise<NavNode[]> {
   const cats = (await fetchCategories()).filter((c) => c.isActive !== false);
