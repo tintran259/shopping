@@ -163,20 +163,25 @@ export function ProductPurchase({
   return (
     <div className="space-y-5">
       {/* Price */}
-      <div className="flex items-end gap-3">
-        <span className="text-3xl font-bold tracking-tight text-(--theme-sale-price,inherit)">
-          {formatPrice(price.amount, price.currency)}
-        </span>
-        {sale && (
-          <>
-            <span className="pb-1 text-base text-muted-foreground line-through">
-              {formatPrice(price.compareAt!, price.currency)}
-            </span>
-            <span className="mb-1 rounded-full bg-(--theme-discount-badge-bg,var(--destructive)) px-2 py-0.5 text-xs font-bold text-(--theme-discount-badge-text,#fff)">
-              -{discountPercent(price)}%
-            </span>
-          </>
-        )}
+      <div>
+        <div className="flex items-end gap-3">
+          <span className="text-3xl font-bold tracking-tight text-(--theme-sale-price,inherit)">
+            {formatPrice(price.amount, price.currency)}
+          </span>
+          {sale && (
+            <>
+              <span className="pb-1 text-base text-muted-foreground line-through">
+                {formatPrice(price.compareAt!, price.currency)}
+              </span>
+              <span className="mb-1 rounded-full bg-(--theme-discount-badge-bg,var(--destructive)) px-2 py-0.5 text-xs font-bold text-(--theme-discount-badge-text,#fff)">
+                -{discountPercent(price)}%
+              </span>
+            </>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Chưa bao gồm phí vận chuyển — tính khi thanh toán
+        </p>
       </div>
 
       {/* Variant options */}

@@ -23,8 +23,6 @@ import {
 } from "@/services/voucher.service";
 import type { CartLine } from "@/store/cart.store";
 
-const FREE_SHIP_THRESHOLD = 500_000;
-
 export function CartPage() {
   const { lines, ready, setQuantity, removeLine, removeMany, clear } = useCart();
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId);
@@ -108,7 +106,6 @@ export function CartPage() {
   const fixExceeded = () => {
     for (const l of exceedLines) setQuantity(l.id, Math.max(1, stat(l).available));
   };
-  const freeShipLeft = Math.max(0, FREE_SHIP_THRESHOLD - subtotal);
   const currency = lines[0]?.currency ?? "VND";
 
   // Nearest voucher by minSubtotal gap — only vouchers where subtotal is the ONLY missing
@@ -236,35 +233,19 @@ export function CartPage() {
           />
         </div>
 
-        {subtotal > 0 && (
+        {subtotal > 0 && nearest && (
           <p className="mt-3 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-            {nearest ? (
-              <>
-                Mua thêm{" "}
-                <span className="font-semibold text-foreground">
-                  {formatPrice(amountToQualify(nearest, subtotal), currency)}
-                </span>{" "}
-                {nearest.type === "shipping" ? (
-                  "để được miễn phí vận chuyển."
-                ) : (
-                  <>
-                    để nhận{" "}
-                    <span className="font-semibold text-foreground">{nearest.label}</span>.
-                  </>
-                )}
-              </>
-            ) : freeShipLeft > 0 ? (
-              <>
-                Mua thêm{" "}
-                <span className="font-semibold text-foreground">
-                  {formatPrice(freeShipLeft, currency)}
-                </span>{" "}
-                để được miễn phí vận chuyển.
-              </>
+            Mua thêm{" "}
+            <span className="font-semibold text-foreground">
+              {formatPrice(amountToQualify(nearest, subtotal), currency)}
+            </span>{" "}
+            {nearest.type === "shipping" ? (
+              "để được miễn phí vận chuyển."
             ) : (
-              <span className="font-medium text-(--theme-in-stock,#16a34a)">
-                Đơn hàng được miễn phí vận chuyển 🎉
-              </span>
+              <>
+                để nhận{" "}
+                <span className="font-semibold text-foreground">{nearest.label}</span>.
+              </>
             )}
           </p>
         )}

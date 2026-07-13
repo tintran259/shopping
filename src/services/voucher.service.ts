@@ -34,6 +34,9 @@ export interface Voucher {
   applicableProducts?: VoucherProduct[];
   /** Branches this voucher is restricted to. Undefined = applies to all branches. */
   applicableBranches?: VoucherBranch[];
+  /** Shipping methods this voucher applies to (standard/express). Undefined =
+   *  every method. Only meaningful for `shipping` vouchers. */
+  applicableShippingMethods?: string[];
   /** True when this voucher requires a logged-in session (`users` or `specific` with customers).
    *  FE can only verify "is there a session?"; exact customer match is always server-side. */
   requiresAuth?: boolean;
@@ -75,6 +78,7 @@ interface ApiVoucher {
   endsAt?: string;
   applicableProducts?: VoucherProduct[];
   applicableBranches?: VoucherBranch[];
+  applicableShippingMethods?: string[];
   requiresCustomer?: boolean;
   guestsOnly?: boolean;
 }
@@ -85,6 +89,9 @@ function toVoucher(v: ApiVoucher): Voucher {
     minSubtotal: v.minSubtotal || undefined,
     applicableProducts: v.applicableProducts?.length ? v.applicableProducts : undefined,
     applicableBranches: v.applicableBranches?.length ? v.applicableBranches : undefined,
+    applicableShippingMethods: v.applicableShippingMethods?.length
+      ? v.applicableShippingMethods
+      : undefined,
     requiresAuth: v.requiresCustomer ?? false,
     guestsOnly: v.guestsOnly ?? false,
   };
@@ -166,6 +173,9 @@ export interface VoucherContext {
   /** Logged-in customer id. Required for customer-restricted vouchers (`requiresAuth`).
    *  Fine-grained check (is THIS customer in the allowed list?) is always server-side. */
   customerId?: string;
+  /** Chosen home-delivery method (standard/express) — checked against a shipping
+   *  voucher's `applicableShippingMethods`. */
+  shippingMethod?: string;
 }
 
 /**
@@ -205,6 +215,20 @@ export function validateVoucher(
       return { ok: false, reason: `Chỉ áp dụng tại chi nhánh: ${names}` };
     }
   }
+  // Shipping voucher restricted to specific methods (tiêu chuẩn/nhanh) — only
+  // enforced once a method is chosen (fail open before that, matching the BE):
+  // the method is unknown when applying the code in the cart.
+  if (
+    v.type === "shipping" &&
+    v.applicableShippingMethods?.length &&
+    ctx.shippingMethod &&
+    !v.applicableShippingMethods.includes(ctx.shippingMethod)
+  ) {
+    const names = v.applicableShippingMethods
+      .map((m) => (m === "express" ? "Giao nhanh" : "Giao tiêu chuẩn"))
+      .join(", ");
+    return { ok: false, reason: `Chỉ áp dụng cho phương thức: ${names}` };
+  }
   // Guests-only: logged-in users must not apply.
   if (v.guestsOnly && ctx.customerId) {
     return { ok: false, reason: "Chỉ áp dụng cho khách vãng lai (không cần tài khoản)" };
@@ -236,7 +260,8 @@ export function shippingDiscountFor(
 ): number {
   if (v.type !== "shipping") return 0;
   if (!validateVoucher(v, subtotal, ctx).ok) return 0;
-  return Math.min(v.value, shippingFee);
+  // value === 0 = miễn phí toàn bộ phí ship (100%); value > 0 = giảm tối đa X đ.
+  return v.value === 0 ? shippingFee : Math.min(v.value, shippingFee);
 }
 
 /** Amount still needed to qualify, 0 if already eligible. */

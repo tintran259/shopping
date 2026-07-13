@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -92,9 +92,29 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
   const shippingFee = shippingMethod.fee;
 
   const voucher = appliedVoucher ?? undefined;
-  const productDiscount = voucher ? discountFor(voucher, subtotal) : 0;
-  const shippingDiscount = voucher ? shippingDiscountFor(voucher, subtotal, shippingFee) : 0;
+  const voucherCtx = useMemo(
+    () => ({
+      branchId: selectedBranchId ?? undefined,
+      customerId: authUser?.id ?? undefined,
+    }),
+    [selectedBranchId, authUser?.id],
+  );
+  const productDiscount = voucher ? discountFor(voucher, subtotal, voucherCtx) : 0;
+  const shippingDiscount = voucher
+    ? shippingDiscountFor(voucher, subtotal, shippingFee, {
+        ...voucherCtx,
+        shippingMethod: shippingMethod.id,
+      })
+    : 0;
   const total = Math.max(0, subtotal - productDiscount + shippingFee - shippingDiscount);
+
+  const shippingDiscountForMethod = useCallback(
+    (methodId: string, fee: number) =>
+      voucher
+        ? shippingDiscountFor(voucher, subtotal, fee, { ...voucherCtx, shippingMethod: methodId })
+        : 0,
+    [voucher, subtotal, voucherCtx],
+  );
 
   // Validation
   const phoneOk = /^[0-9\s+]{9,}$/.test(checkout.phone.trim());
@@ -255,7 +275,12 @@ export function CheckoutPage({ branches }: { branches: Branch[] }) {
           </div>
         )}
 
-        <DeliveryOptions branch={branch} methods={deliveryMethods} currency={currency} />
+        <DeliveryOptions
+          branch={branch}
+          methods={deliveryMethods}
+          currency={currency}
+          shippingDiscountForMethod={shippingDiscountForMethod}
+        />
         <ContactAddress showErrors={showErrors} />
         <VatInvoice showErrors={showErrors} />
         <PaymentOptions />

@@ -133,6 +133,11 @@ function buildBody(input: PlaceOrderInput, code?: string): Record<string, unknow
     recipientEmail: input.recipient.email || undefined,
     voucherCode: input.voucherCode || undefined,
     shippingFee: input.shippingFee.toFixed(2),
+    // Let the BE validate a method-restricted shipping voucher (standard/express
+    // only; pickup has no fee/method to gate on).
+    ...(input.shippingMethodId === "standard" || input.shippingMethodId === "express"
+      ? { shippingMethod: input.shippingMethodId }
+      : {}),
     invoice: input.invoice,
     code,
     ...(input.fulfillment === "delivery" && input.address

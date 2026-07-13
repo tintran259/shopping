@@ -16,10 +16,15 @@ export const DeliveryOptions = memo(function DeliveryOptions({
   branch,
   methods,
   currency = "VND",
+  shippingDiscountForMethod,
 }: {
   branch: Branch | null;
   methods: ShippingMethod[];
   currency?: string;
+  /** Voucher shipping discount for a given method + fee — computed per-method so
+   *  each option shows its real effective fee, and a method-restricted voucher
+   *  only discounts the method(s) it applies to. */
+  shippingDiscountForMethod?: (methodId: string, fee: number) => number;
 }) {
   const fulfillment = useCheckoutStore((s) => s.fulfillment);
   const shippingMethodId = useCheckoutStore((s) => s.shippingMethodId);
@@ -85,9 +90,23 @@ export const DeliveryOptions = memo(function DeliveryOptions({
                   <span className="block text-sm font-medium">{m.label}</span>
                   <span className="block text-xs text-muted-foreground">{m.eta}</span>
                 </span>
-                <span className="shrink-0 text-sm font-semibold tabular-nums">
-                  {feeLabel(m.fee, currency)}
-                </span>
+                {(() => {
+                  const discount = shippingDiscountForMethod?.(m.id, m.fee) ?? 0;
+                  const effective = Math.max(0, m.fee - discount);
+                  const discounted = discount > 0 && effective < m.fee;
+                  return (
+                    <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
+                      {discounted && (
+                        <span className="mr-1 text-xs font-normal text-muted-foreground line-through">
+                          {feeLabel(m.fee, currency)}
+                        </span>
+                      )}
+                      <span className={discounted ? "text-(--theme-in-stock,#16a34a)" : undefined}>
+                        {feeLabel(effective, currency)}
+                      </span>
+                    </span>
+                  );
+                })()}
               </label>
             );
           })}
