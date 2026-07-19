@@ -11,6 +11,7 @@ import { toast } from "@/store/toast.store";
 import { useAuthStore } from "@/store/auth.store";
 import { cancelOrder, fetchMyOrders } from "@/services/order.service";
 import { OrderDetail } from "@/features/orders/components/order-detail";
+import { OrderFeedback } from "@/features/orders/components/order-feedback";
 import { AccountShell } from "./components/account-shell";
 
 /** Raw BE statuses that read as "done" → neutral badge; everything else is
@@ -107,12 +108,15 @@ export function AccountOrdersPage() {
                 </button>
 
                 {open && (
-                  <div className="border-t border-border/60 p-4">
+                  <div className="space-y-4 border-t border-border/60 p-4">
                     <OrderDetail
                       order={o}
                       onCancel={o.uuid ? () => setConfirmCancel(o.uuid!) : undefined}
                       cancelling={cancelMut.isPending && confirmCancel === o.uuid}
                     />
+                    {o.statusCode === "delivered" && (
+                      <OrderFeedback order={o} />
+                    )}
                   </div>
                 )}
               </li>

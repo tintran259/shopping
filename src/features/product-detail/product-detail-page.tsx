@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { CmsSlot } from "@/cms/renderer/cms-slot";
 import { env } from "@/config/env";
+import { getGlobalSeo } from "@/cms/services/cms.service";
 import { getBranches } from "@/services/branch.service";
+import { formatSoldCount } from "@/lib/pricing";
 import type { Product, ProductAttribute, ProductSummary } from "@/types/product";
 import { Gallery } from "./components/gallery";
 import { ProductPurchase } from "./components/product-purchase";
+import { ProductReviews } from "./components/product-reviews";
 
 /** schema.org Product JSON-LD — enables price/rating/availability rich results. */
 function productJsonLd(p: Product) {
@@ -78,7 +81,7 @@ const attrValue = (a: ProductAttribute) =>
   Array.isArray(a.value) ? a.value.join(", ") : a.value;
 
 export async function ProductDetailPage({ product }: { product: Product }) {
-  const branches = await getBranches();
+  const [branches, seo] = await Promise.all([getBranches(), getGlobalSeo()]);
   const summary = toSummary(product);
   const cat = product.categories[0];
 
@@ -130,6 +133,11 @@ export async function ProductDetailPage({ product }: { product: Product }) {
                 <span>({product.rating.count} đánh giá)</span>
               </span>
             )}
+            {product.soldCount != null && (
+              <span className="text-muted-foreground">
+                Đã bán <span className="font-medium text-foreground">{formatSoldCount(product.soldCount)}</span>
+              </span>
+            )}
             <span className="text-muted-foreground">SKU: {product.sku}</span>
             {product.highlight && (
               <span className="rounded-full bg-(--theme-success,#059669) px-2 py-0.5 text-xs font-semibold text-white">
@@ -172,6 +180,8 @@ export async function ProductDetailPage({ product }: { product: Product }) {
       </section>
 
       <CmsSlot slot="pdp-bottom" />
+
+      <ProductReviews slug={product.slug} rating={product.rating} shopLogoUrl={seo?.logo?.src ?? null} />
     </main>
   );
 }

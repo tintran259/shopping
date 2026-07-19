@@ -127,6 +127,8 @@ export interface ProductSummary {
   priceVaries?: boolean;
   brand?: BrandRef | null;
   rating?: ProductRating;
+  /** Total units sold across all time (for social proof display). */
+  soldCount?: number;
   flags: ProductFlags;
   inStock: boolean;
   /** Per-branch availability — lets the PLP quick-add respect the selected branch. */
@@ -209,4 +211,30 @@ export interface ProductListResult {
   items: ProductSummary[];
   pagination: Pagination;
   facets: Facet[];
+}
+
+// ── Reviews ──────────────────────────────────────────────────────────────────
+
+export interface ProductReview {
+  id: string;
+  rating: number;
+  tags: string[];
+  comment?: string;
+  imageUrls: string[];
+  /** Pre-masked by BE, e.g. "Nguyễn V***". */
+  authorName: string;
+  createdAt: string;
+  /** True when BE verified this reviewer purchased the product. */
+  verified: boolean;
+  /** Admin public reply, if any. */
+  reply?: string;
+  repliedAt?: string;
+}
+
+export interface ProductReviewsResult {
+  reviews: ProductReview[];
+  total: number;
+  average: number;
+  /** Count per star level (index 0 = 1★ … index 4 = 5★). */
+  distribution: { star: number; count: number }[];
 }

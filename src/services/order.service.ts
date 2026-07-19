@@ -188,6 +188,7 @@ export async function placeOrder(
 const CANCELLABLE_STATUS = new Set(["pending", "confirmed"]);
 
 interface ApiOrderItem {
+  variantId: string;
   productName: string;
   variantTitle?: string;
   unitPrice: string;
@@ -239,6 +240,7 @@ function toOrderRecord(o: ApiOrder): OrderRecord {
     address: o.fulfillment === "delivery" ? addr : undefined,
     items: o.items.map((it, idx) => ({
       id: `${it.productName}-${idx}`,
+      variantId: it.variantId,
       name: it.productName,
       detail: it.variantTitle || undefined,
       price: Number(it.unitPrice),

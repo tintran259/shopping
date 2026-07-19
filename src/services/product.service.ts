@@ -4,6 +4,7 @@ import type {
   Product,
   ProductListParams,
   ProductListResult,
+  ProductReviewsResult,
   ProductSummary,
   ProductSort,
 } from "@/types/product";
@@ -90,6 +91,55 @@ export interface SearchSuggestions {
   products: ProductSummary[];
   categories: CategoryRef[];
   total: number;
+}
+
+export async function fetchProductReviews(
+  slug: string,
+  page = 1,
+  limit = 10,
+  star?: number,
+): Promise<ProductReviewsResult> {
+  const empty: ProductReviewsResult = { reviews: [], total: 0, average: 0, distribution: [] };
+  try {
+    const qs = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (star != null) qs.set("star", String(star));
+    const res = await fetch(
+      `${API}/products/${encodeURIComponent(slug)}/reviews?${qs}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) throw new Error(`reviews ${res.status}`);
+    return (await res.json()) as ProductReviewsResult;
+  } catch (err) {
+    console.error("[catalog] fetchProductReviews failed:", err);
+    return empty;
+  }
+}
+
+/** Submit a standalone product review (PENDING → admin approval).
+ *  Requires Bearer token; `verified` badge will NOT appear (no linked order). */
+export async function submitProductReview(
+  productId: string,
+  token: string,
+  payload: {
+    rating: number;
+    comment?: string;
+    tags?: string[];
+    imageUrls?: string[];
+  },
+): Promise<void> {
+  const res = await fetch(`${API}/reviews`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ productId, ...payload }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const msg = Array.isArray(err?.message) ? err.message[0] : (err?.message ?? "Gửi đánh giá thất bại");
+    throw new Error(String(msg));
+  }
 }
 
 /** Typeahead: top matching products (BE) + matching categories (filtered locally). */

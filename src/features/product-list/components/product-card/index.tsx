@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { discountPercent, formatPrice, isOnSale } from "@/lib/pricing";
+import { discountPercent, formatPrice, formatSoldCount, isOnSale } from "@/lib/pricing";
 import type { OptionPreview, ProductSummary } from "@/types/product";
 import { colorHex } from "../../utils/swatch";
 import { QuickAddButton } from "../quick-add-button";
@@ -125,15 +125,25 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           {product.name}
         </Link>
 
-        <div className="mt-1.5 flex items-center gap-2">
+        <div className="mt-1.5 flex items-center gap-1.5">
           {product.rating && (
             <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
               <span aria-hidden className="text-(--theme-rating,#f59e0b)">★</span>
               {product.rating.average.toFixed(1)}
-              <span className="text-muted-foreground/70">({product.rating.count})</span>
+              <span className="text-muted-foreground/60">({product.rating.count})</span>
             </span>
           )}
-          {product.optionPreview && <OptionPreviewRow preview={product.optionPreview} />}
+          {product.soldCount != null && product.soldCount > 0 && (
+            <>
+              {product.rating && <span className="text-muted-foreground/40">·</span>}
+              <span className="text-xs text-muted-foreground">
+                Đã bán {formatSoldCount(product.soldCount)}
+              </span>
+            </>
+          )}
+          {product.optionPreview && !product.soldCount && (
+            <OptionPreviewRow preview={product.optionPreview} />
+          )}
         </div>
 
         <div className="mt-2 flex items-baseline gap-2">

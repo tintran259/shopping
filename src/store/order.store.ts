@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware";
 
 export interface OrderRecordItem {
   id: string;
+  /** BE variant UUID — required when submitting a per-item review. */
+  variantId?: string;
   name: string;
   /** Variant label, e.g. "500g" or "Đen · M". */
   detail?: string;

@@ -8,6 +8,7 @@ import { useOrderStore } from "@/store/order.store";
 import { useAuthStore } from "@/store/auth.store";
 import { QuickRegisterModal } from "@/features/auth/components/quick-register-modal";
 import { OrderDetail } from "./components/order-detail";
+import { OrderFeedback } from "./components/order-feedback";
 
 export function OrderSuccessPage({ orderId }: { orderId: string }) {
   const getById = useOrderStore((s) => s.getById);
@@ -67,8 +68,9 @@ export function OrderSuccessPage({ orderId }: { orderId: string }) {
         </p>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-4">
         <OrderDetail order={order} />
+        <OrderFeedback order={order} />
       </div>
 
       <QuickRegisterModal

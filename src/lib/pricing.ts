@@ -38,3 +38,10 @@ export function discountPercent(price: ProductPrice): number {
 export function discountAmount(price: ProductPrice): number {
   return isOnSale(price) ? price.compareAt! - price.amount : 0;
 }
+
+/** "999" → "999",  "1000" → "1k",  "1234" → "1.2k",  "12345" → "12k". */
+export function formatSoldCount(n: number): string {
+  if (n >= 10_000) return `${Math.floor(n / 1_000)}k`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
+  return String(n);
+}

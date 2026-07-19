@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { trackOrder } from "@/services/order.service";
 import type { OrderRecord } from "@/store/order.store";
 import { OrderDetail } from "./components/order-detail";
+import { OrderFeedback } from "./components/order-feedback";
 
 const inputCls =
   "h-11 w-full rounded-lg border border-border bg-background px-3 text-sm focus:border-primary focus:outline-none";
@@ -49,7 +50,12 @@ export function TrackOrderPage() {
 
       <div className="mt-8">
         {result ? (
-          <OrderDetail order={result} />
+          <div className="space-y-4">
+            <OrderDetail order={result} />
+            {result.statusCode === "delivered" && (
+              <OrderFeedback order={result} />
+            )}
+          </div>
         ) : searched ? (
           <div className="rounded-2xl border border-dashed border-border p-8 text-center">
             <p className="text-base font-medium">Không tìm thấy đơn hàng</p>
