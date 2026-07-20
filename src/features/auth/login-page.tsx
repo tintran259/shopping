@@ -1,30 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
 const inputCls =
   "h-11 w-full rounded-lg border border-border bg-background px-3 text-sm focus:border-primary focus:outline-none";
 
-export function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo") ?? "/";
+
   const { isAuthenticated, status, error, login, clearError, mounted } = useAuth();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (mounted && isAuthenticated) router.replace("/account");
-  }, [mounted, isAuthenticated, router]);
+    if (mounted && isAuthenticated) router.replace(returnTo);
+  }, [mounted, isAuthenticated, router, returnTo]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim() || !password) return;
     const ok = await login(identifier, password);
-    if (ok) router.push("/account");
+    if (ok) router.push(returnTo);
   };
 
   return (
@@ -75,7 +78,10 @@ export function LoginPage() {
 
       <p className="mt-4 text-center text-sm text-muted-foreground">
         Chưa có tài khoản?{" "}
-        <Link href="/register" className="font-medium text-primary hover:underline">
+        <Link
+          href={returnTo !== "/" ? `/register?returnTo=${encodeURIComponent(returnTo)}` : "/register"}
+          className="font-medium text-primary hover:underline"
+        >
           Đăng ký
         </Link>
       </p>
@@ -89,5 +95,13 @@ export function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

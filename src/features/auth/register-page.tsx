@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
 const inputCls =
   "h-11 w-full rounded-lg border border-border bg-background px-3 text-sm focus:border-primary focus:outline-none";
 
-export function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo") ?? "/";
+
   const { isAuthenticated, status, error, register, clearError, mounted } = useAuth();
 
   const [name, setName] = useState("");
@@ -21,8 +24,8 @@ export function RegisterPage() {
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mounted && isAuthenticated) router.replace("/account");
-  }, [mounted, isAuthenticated, router]);
+    if (mounted && isAuthenticated) router.replace(returnTo);
+  }, [mounted, isAuthenticated, router, returnTo]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +40,7 @@ export function RegisterPage() {
       return;
     }
     const ok = await register({ name, email, phone, password });
-    if (ok) router.push("/account");
+    if (ok) router.push(returnTo);
   };
 
   return (
@@ -107,7 +110,10 @@ export function RegisterPage() {
 
       <p className="mt-4 text-center text-sm text-muted-foreground">
         Đã có tài khoản?{" "}
-        <Link href="/login" className="font-medium text-primary hover:underline">
+        <Link
+          href={returnTo !== "/" ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login"}
+          className="font-medium text-primary hover:underline"
+        >
           Đăng nhập
         </Link>
       </p>
@@ -116,5 +122,13 @@ export function RegisterPage() {
         Mua sỉ / doanh nghiệp (B2B)? Tài khoản do chúng tôi cấp — vui lòng liên hệ để được hỗ trợ.
       </p>
     </div>
+  );
+}
+
+export function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

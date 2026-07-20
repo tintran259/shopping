@@ -22,6 +22,9 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 60 * 1000,
             refetchOnWindowFocus: false,
+            // Don't refetch on component re-mount if data is still fresh —
+            // this is the main source of loading flashes when navigating between pages.
+            refetchOnMount: false,
             retry: 1,
           },
         },

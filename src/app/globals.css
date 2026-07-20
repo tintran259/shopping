@@ -129,6 +129,12 @@
 
   html {
     @apply font-sans;
+    /* Hide native scrollbar — scroll progress is shown in the header instead.
+       Hiding it also prevents the ~15px layout shift when scrollbar appears/disappears. */
+    scrollbar-width: none; /* Firefox */
+  }
+  html::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Edge */
   }
 
   h1, h2, h3, h4, h5, h6 {

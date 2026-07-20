@@ -11,6 +11,7 @@ import { AccountMenu } from "./account-menu";
 import { getGlobalSeo } from "@/cms/services/cms.service";
 import { getNavigation } from "@/services/navigation";
 import { getBranches } from "@/services/branch.service";
+import { ScrollProgressBar } from "./scroll-progress-bar";
 
 const SITE_NAME = "Shopping";
 
@@ -23,7 +24,7 @@ export async function Header() {
   ]);
 
   return (
-    <header className="sticky top-0 z-50 text-(--theme-header-text,var(--foreground)) bg-[color-mix(in_srgb,var(--theme-header-background,var(--background))_92%,transparent)] backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_srgb,var(--theme-header-background,var(--background))_80%,transparent)]">
+    <header className="sticky top-0 z-50 text-(--theme-header-text,var(--foreground)) bg-[color-mix(in_srgb,var(--theme-header-background,var(--background))_92%,transparent)] backdrop-blur supports-backdrop-filter:bg-[color-mix(in_srgb,var(--theme-header-background,var(--background))_80%,transparent)]">
       <AnnouncementBar />
 
       {/* Row 1 — logo · search · branch + actions */}
@@ -72,6 +73,8 @@ export async function Header() {
           <DesktopNav items={nav} />
         </div>
       </div>
+
+      <ScrollProgressBar />
     </header>
   );
 }

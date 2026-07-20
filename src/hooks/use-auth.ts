@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useAuthStore } from "@/store/auth.store";
 import { isWholesale } from "@/services/auth.service";
 
@@ -11,14 +10,15 @@ import { isWholesale } from "@/services/auth.service";
  */
 export function useAuth() {
   const store = useAuthStore();
+  // _hasHydrated is set synchronously by Zustand's onRehydrateStorage (localStorage
+  // is sync), so it's true on the very first client render — no extra useEffect tick
+  // needed. This avoids the skeleton flash that the old useState(false)+useEffect
+  // pattern caused on every navigation (every AccountShell re-mount).
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
 
-  const [mounted, setMounted] = useState(false);
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client mount gate
-  useEffect(() => setMounted(true), []);
-
-  const user = mounted ? store.user : null;
+  const user = hasHydrated ? store.user : null;
   return {
-    mounted,
+    mounted: hasHydrated,
     user,
     isAuthenticated: !!user,
     isWholesale: isWholesale(user),

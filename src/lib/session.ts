@@ -7,6 +7,11 @@ import { useBranchStore } from "@/store/branch.store";
 import { useOrderStore } from "@/store/order.store";
 import { useAddressStore } from "@/store/address.store";
 
+// Set to true for the duration of a logout so auth guards (AccountShell /
+// AccountHubPage) don't race and redirect to /login before the hard reload lands.
+let _loggingOut = false;
+export const isLoggingOut = () => _loggingOut;
+
 /**
  * Full client logout — returns the browser to a first-visit state:
  *  1. reset every in-memory store (so UI updates instantly), then
@@ -18,6 +23,7 @@ import { useAddressStore } from "@/store/address.store";
  * callers don't need their own navigation after this.
  */
 export function logoutAndReset(redirectTo = "/") {
+  _loggingOut = true;
   useAuthStore.getState().logout();
   useCartStore.getState().clear();
   useVoucherStore.getState().clear();

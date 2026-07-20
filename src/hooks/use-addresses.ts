@@ -61,7 +61,7 @@ export function useAddresses(): UseAddresses {
     queryKey: QK,
     queryFn: () => fetchAddresses(token as string),
     enabled: isAuth && mounted,
-    staleTime: 30_000,
+    staleTime: Infinity,
   });
   const apiAddresses = useMemo(() => query.data ?? [], [query.data]);
 
