@@ -101,7 +101,7 @@ export function ProductPurchase({
 
   // Quantity of THIS variant already in the cart — the cap is stock minus that, so
   // (cart + about-to-add) can never exceed real stock (matches Shopee/Tiki/Amazon).
-  const currentVariantId = variant?.id ?? live.variants[0]?.id;
+  const currentVariantId = variant?.id ?? live.variants[0]?.id ?? product.defaultVariantId ?? undefined;
   const inCart = lines
     .filter((l) => l.variantId && l.variantId === currentVariantId)
     .reduce((n, l) => n + l.quantity, 0);
@@ -231,7 +231,14 @@ export function ProductPurchase({
             Hết hàng
           </Button>
           <div className="flex items-center gap-3">
-            <NotifyStockButton productName={product.name} className="flex-1" />
+            {currentVariantId && (
+              <NotifyStockButton
+                productName={product.name}
+                variantId={currentVariantId}
+                branchId={branch?.id}
+                className="flex-1"
+              />
+            )}
             <WishlistMenu product={summary} className="size-11 rounded-lg border border-border bg-background" />
           </div>
         </div>

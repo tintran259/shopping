@@ -1,14 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useModalDismiss } from "@/hooks/use-modal-dismiss";
 import { useAuthStore } from "@/store/auth.store";
+import { toast } from "@/store/toast.store";
+import { subscribeBackInStock } from "@/services/notification.service";
 
 type Channel = "email" | "phone";
 type Contact = { type: Channel; value: string; label: string };
+type Status = "idle" | "loading" | "done";
+
+// Persist "already subscribed" per (variantId × branchId) so revisiting the
+// PDP shows the confirmed state instead of resetting to "Thông báo khi có hàng".
+// localStorage is cleared on logout (logoutAndReset), so the state resets
+// correctly when a different user signs in on the same device.
+const storageKey = (variantId: string, branchId?: string) =>
+  `notify:${variantId}:${branchId ?? "_"}`;
+
+function isSubscribed(variantId: string, branchId?: string): boolean {
+  try {
+    return localStorage.getItem(storageKey(variantId, branchId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markSubscribed(variantId: string, branchId?: string): void {
+  try {
+    localStorage.setItem(storageKey(variantId, branchId), "1");
+  } catch {
+    // Storage blocked (private mode) — button just resets on next visit, acceptable.
+  }
+}
 
 /**
  * Back-in-stock notify. Behaviour by how many contacts the customer has:
@@ -18,13 +44,18 @@ type Contact = { type: Channel; value: string; label: string };
  */
 export function NotifyStockButton({
   productName,
+  variantId,
+  branchId,
   className,
 }: {
   productName: string;
+  variantId: string;
+  branchId?: string;
   className?: string;
 }) {
   const email = useAuthStore((s) => s.user?.email ?? null);
   const phone = useAuthStore((s) => s.user?.phone ?? null);
+  const customerId = useAuthStore((s) => s.user?.id ?? null);
 
   const contacts: Contact[] = [
     email ? { type: "email" as const, value: email, label: "Email" } : null,
@@ -32,22 +63,47 @@ export function NotifyStockButton({
   ].filter(Boolean) as Contact[];
 
   const [open, setOpen] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
+  // Lazy initializer for the first mount; useEffect below re-syncs when the
+  // variant changes (switching variants doesn't remount this component).
+  const [status, setStatus] = useState<Status>(() =>
+    isSubscribed(variantId, branchId) ? "done" : "idle",
+  );
+
+  useEffect(() => {
+    setStatus(isSubscribed(variantId, branchId) ? "done" : "idle");
+    setOpen(false);
+  }, [variantId, branchId]);
   const [choice, setChoice] = useState<Channel>(contacts[0]?.type ?? "email");
   const [input, setInput] = useState("");
 
   useModalDismiss(open, () => setOpen(false));
 
-  // TODO: POST to the BE back-in-stock subscription endpoint.
-  const register = (via: string) => {
-    setDone(via);
-    setOpen(false);
+  const register = async (contact: string) => {
+    setStatus("loading");
+    try {
+      await subscribeBackInStock({
+        variantId,
+        contact,
+        branchId,
+        customerId: customerId ?? undefined,
+      });
+      setStatus("done");
+      markSubscribed(variantId, branchId);
+      setOpen(false);
+      toast.success("Đã đăng ký! Chúng tôi sẽ thông báo khi sản phẩm có hàng trở lại.");
+    } catch (err) {
+      setStatus("idle");
+      toast.error(err instanceof Error ? err.message : "Không thể đăng ký thông báo, vui lòng thử lại.");
+    }
   };
 
   const handleClick = () => {
-    if (done) return;
-    if (contacts.length === 1) return register(contacts[0].value); // single contact → no modal
-    setOpen(true); // 0 or 2 → modal
+    if (status !== "idle") return;
+    if (contacts.length === 1) {
+      register(contacts[0].value);
+      return;
+    }
+    setOpen(true);
   };
 
   const confirmModal = () => {
@@ -58,6 +114,9 @@ export function NotifyStockButton({
     }
   };
 
+  const isLoading = status === "loading";
+  const isDone = status === "done";
+
   return (
     <>
       <Button
@@ -65,15 +124,19 @@ export function NotifyStockButton({
         variant="outline"
         size="lg"
         className={cn("h-11 rounded-lg", className)}
-        disabled={!!done}
+        disabled={isDone || isLoading}
         onClick={handleClick}
       >
-        {done ? "Đã đăng ký nhận thông báo ✓" : "Thông báo khi có hàng"}
+        {isDone
+          ? "Đã đăng ký nhận thông báo ✓"
+          : isLoading
+            ? "Đang đăng ký…"
+            : "Thông báo khi có hàng"}
       </Button>
 
       {open &&
         createPortal(
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} aria-hidden />
             <div
               role="dialog"
@@ -95,7 +158,9 @@ export function NotifyStockButton({
                       key={c.type}
                       className={cn(
                         "flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition",
-                        choice === c.type ? "border-primary bg-primary/5" : "border-border hover:border-foreground/40",
+                        choice === c.type
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-foreground/40",
                       )}
                     >
                       <input
@@ -127,11 +192,20 @@ export function NotifyStockButton({
               )}
 
               <div className="mt-5 flex items-center justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setOpen(false)}
+                  disabled={isLoading}
+                >
                   Hủy
                 </Button>
-                <Button size="sm" onClick={confirmModal} disabled={contacts.length < 2 && !input.trim()}>
-                  Xác nhận
+                <Button
+                  size="sm"
+                  onClick={confirmModal}
+                  disabled={isLoading || (contacts.length < 2 && !input.trim())}
+                >
+                  {isLoading ? "Đang đăng ký…" : "Xác nhận"}
                 </Button>
               </div>
             </div>
