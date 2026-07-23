@@ -7,33 +7,39 @@ import { Button } from "@/components/ui/button";
 import { useModalDismiss } from "@/hooks/use-modal-dismiss";
 import { useAuthStore } from "@/store/auth.store";
 import { toast } from "@/store/toast.store";
-import { subscribeBackInStock } from "@/services/notification.service";
+import { checkPendingSubscription, subscribeBackInStock } from "@/services/notification.service";
 
 type Channel = "email" | "phone";
 type Contact = { type: Channel; value: string; label: string };
 type Status = "idle" | "loading" | "done";
 
-// Persist "already subscribed" per (variantId × branchId) so revisiting the
-// PDP shows the confirmed state instead of resetting to "Thông báo khi có hàng".
-// localStorage is cleared on logout (logoutAndReset), so the state resets
-// correctly when a different user signs in on the same device.
+// localStorage stores the contact string (email/phone) used when subscribing,
+// keyed by (variantId × branchId). This lets us verify with the BE on revisit
+// whether the subscription is still pending or has already been fulfilled.
+// Cleared on logout (logoutAndReset → localStorage.clear()).
 const storageKey = (variantId: string, branchId?: string) =>
   `notify:${variantId}:${branchId ?? "_"}`;
 
-function isSubscribed(variantId: string, branchId?: string): boolean {
+function getStoredContact(variantId: string, branchId?: string): string | null {
   try {
-    return localStorage.getItem(storageKey(variantId, branchId)) === "1";
+    return localStorage.getItem(storageKey(variantId, branchId));
   } catch {
-    return false;
+    return null;
   }
 }
 
-function markSubscribed(variantId: string, branchId?: string): void {
+function markSubscribed(contact: string, variantId: string, branchId?: string): void {
   try {
-    localStorage.setItem(storageKey(variantId, branchId), "1");
+    localStorage.setItem(storageKey(variantId, branchId), contact);
   } catch {
     // Storage blocked (private mode) — button just resets on next visit, acceptable.
   }
+}
+
+function clearSubscribed(variantId: string, branchId?: string): void {
+  try {
+    localStorage.removeItem(storageKey(variantId, branchId));
+  } catch { }
 }
 
 /**
@@ -63,15 +69,33 @@ export function NotifyStockButton({
   ].filter(Boolean) as Contact[];
 
   const [open, setOpen] = useState(false);
-  // Lazy initializer for the first mount; useEffect below re-syncs when the
-  // variant changes (switching variants doesn't remount this component).
+  // Lazy initializer reads localStorage for instant feedback on mount.
+  // useEffect below re-syncs every time variantId/branchId changes AND
+  // verifies with the BE that the subscription is still pending — if it was
+  // already notified (product restocked then sold out again), clear localStorage
+  // and let the user subscribe again for the new stock cycle.
   const [status, setStatus] = useState<Status>(() =>
-    isSubscribed(variantId, branchId) ? "done" : "idle",
+    getStoredContact(variantId, branchId) !== null ? "done" : "idle",
   );
 
   useEffect(() => {
-    setStatus(isSubscribed(variantId, branchId) ? "done" : "idle");
+    const stored = getStoredContact(variantId, branchId);
+    if (stored === null) {
+      setStatus("idle");
+      setOpen(false);
+      return;
+    }
+    // Contact found in localStorage → verify the subscription is still pending.
+    setStatus("done");
     setOpen(false);
+    checkPendingSubscription({ variantId, contact: stored, branchId })
+      .then((pending) => {
+        if (!pending) {
+          clearSubscribed(variantId, branchId);
+          setStatus("idle");
+        }
+      })
+      .catch(() => undefined);
   }, [variantId, branchId]);
   const [choice, setChoice] = useState<Channel>(contacts[0]?.type ?? "email");
   const [input, setInput] = useState("");
@@ -88,7 +112,7 @@ export function NotifyStockButton({
         customerId: customerId ?? undefined,
       });
       setStatus("done");
-      markSubscribed(variantId, branchId);
+      markSubscribed(contact, variantId, branchId);
       setOpen(false);
       toast.success("Đã đăng ký! Chúng tôi sẽ thông báo khi sản phẩm có hàng trở lại.");
     } catch (err) {
